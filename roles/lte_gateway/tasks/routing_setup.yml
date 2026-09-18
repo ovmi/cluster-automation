@@ -1,0 +1,113 @@
+---
+- name: Gather network facts
+  ansible.builtin.setup:
+    gather_subset:
+      - network
+
+- name: Set active LTE interface based on mode
+  ansible.builtin.set_fact:
+    lte_active_iface: "{{ lte_ecm_iface if lte_mode == 'ecm' else lte_qmi_iface }}"
+
+- name: Debug network addresses
+  ansible.builtin.debug:
+    msg: "Host {{ inventory_hostname }} - IP: {{ ansible_host }}, LTE iface: {{ lte_active_iface }}"
+  when: debug | default(false)
+
+- name: Add custom routing tables
+  ansible.builtin.lineinfile:
+    path: /etc/iproute2/rt_tables
+    line: "{{ item }}"
+    state: present
+  loop:
+    - "200 lte"
+    - "201 lan"
+
+- name: Enable IP forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    sysctl_set: true
+    reload: true
+
+- name: Allow forwarding from LAN to LTE
+  ansible.builtin.iptables:
+    chain: FORWARD
+    in_interface: "{{ lan_iface }}"
+    out_interface: "{{ lte_active_iface }}"
+    jump: ACCEPT
+    state: present
+
+- name: Allow forwarding from LTE to LAN for established connections
+  ansible.builtin.iptables:
+    chain: FORWARD
+    in_interface: "{{ lte_active_iface }}"
+    out_interface: "{{ lan_iface }}"
+    ctstate:
+      - RELATED
+      - ESTABLISHED
+    jump: ACCEPT
+    state: present
+
+- name: Configure NAT masquerade on LTE interface
+  ansible.builtin.iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: "{{ lte_active_iface }}"
+    jump: MASQUERADE
+    state: present
+
+- name: Add LTE routing table entry
+  ansible.builtin.shell: |
+    set -o pipefail
+    {% if lte_mode == 'ecm' %}
+    ip route show table lte | grep -q "default via {{ lte_gateway_ip }}" || \
+    ip route add default via {{ lte_gateway_ip }} dev {{ lte_active_iface }} table lte
+    {% else %}
+    ip route show table lte | grep -q "default via {{ qmi_ipv4_gw }}" || \
+    ip route add default via {{ qmi_ipv4_gw }} dev {{ lte_active_iface }} table lte
+    {% endif %}
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Add LAN routing table entry
+  ansible.builtin.shell: |
+    set -o pipefail
+    ip route show table lan | grep -q "default via {{ lan_gateway_ip }}" || \
+    ip route add default via {{ lan_gateway_ip }} dev {{ lan_iface }} table lan
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Configure IP rules for policy-based routing
+  ansible.builtin.shell: |
+    set -o pipefail
+    ip rule show | grep -q "from {{ ansible_host }} lookup lan" || \
+    ip rule add from {{ ansible_host }} lookup lan priority 100
+
+    ip rule show | grep -q "from {{ ansible_host }} lookup lte" || \
+    ip rule add from {{ ansible_host }} lookup lte priority 200
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Install iptables-persistent
+  ansible.builtin.apt:
+    name: iptables-persistent
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Persist current iptables rules to /etc/iptables/rules.v4
+  ansible.builtin.command: netfilter-persistent save
+  changed_when: true
+
+- name: Deploy route-restore script
+  ansible.builtin.template:
+    src: restore-routes.sh.j2
+    dest: /usr/local/bin/restore-routes.sh
+    mode: "0755"
+    owner: root
+    group: root
+  notify: Restart route-monitor

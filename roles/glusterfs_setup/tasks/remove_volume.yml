@@ -1,0 +1,110 @@
+---
+- name: Compute Gluster node roles for this host
+  ansible.builtin.set_fact:
+    is_gluster_control: "{{ inventory_hostname == (gluster_control_host | default('')) }}"
+    is_gluster_brick: "{{ inventory_hostname in (gluster_brick_hosts | default([])) }}"
+  changed_when: false
+
+- name: Decide gluster management address (control)
+  ansible.builtin.set_fact:
+    gluster_control_addr: "{{ hostvars[gluster_control_host].ansible_host | default(gluster_control_host) }}"
+  when: gluster_control_host is defined
+  changed_when: false
+
+- name: Stop glusterd (best-effort)
+  ansible.builtin.systemd:
+    name: glusterd
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Unmount GlusterFS volume mount (if mounted)
+  ansible.posix.mount:
+    path: "{{ gluster_volume_mountpoint }}"
+    state: unmounted
+  failed_when: false
+
+- name: Remove GlusterFS fstab entry (if present)
+  ansible.posix.mount:
+    path: "{{ gluster_volume_mountpoint }}"
+    state: absent
+  failed_when: false
+
+- name: Unmount brick mount (bricks only)
+  ansible.posix.mount:
+    path: "{{ gluster_brick_path }}"
+    state: unmounted
+  when: is_gluster_brick
+  failed_when: false
+
+- name: Remove brick fstab entry (bricks only)
+  ansible.posix.mount:
+    path: "{{ gluster_brick_path }}"
+    state: absent
+  when: is_gluster_brick
+  failed_when: false
+
+- name: Check if gluster CLI exists on this host
+  ansible.builtin.command: "command -v gluster"
+  register: gluster_cli
+  changed_when: false
+  failed_when: false
+
+- name: Check if volume exists (control only)
+  ansible.builtin.command: "gluster volume info {{ gluster_volume_name }}"
+  register: gluster_vol_info
+  changed_when: false
+  failed_when: false
+  when:
+    - is_gluster_control
+    - gluster_cli.rc == 0
+
+- name: Stop GlusterFS volume (control only, best-effort)
+  ansible.builtin.command: "gluster volume stop {{ gluster_volume_name }} --mode=script"
+  register: gluster_vol_stop
+  changed_when: gluster_vol_stop.rc == 0
+  failed_when: false
+  when:
+    - is_gluster_control
+    - gluster_cli.rc == 0
+    - gluster_vol_info.rc == 0
+
+- name: Delete GlusterFS volume (control only, best-effort)
+  ansible.builtin.command: "gluster volume delete {{ gluster_volume_name }} --mode=script"
+  register: gluster_vol_del
+  changed_when: gluster_vol_del.rc == 0
+  failed_when: false
+  when:
+    - is_gluster_control
+    - gluster_cli.rc == 0
+    - gluster_vol_info.rc == 0
+
+- name: Peer detach brick nodes (control only, best-effort)
+  ansible.builtin.command: >-
+    gluster peer detach {{ hostvars[item].ansible_host | default(item) }} force
+  loop: "{{ gluster_brick_hosts | default([]) }}"
+  register: gluster_detach
+  changed_when: gluster_detach.rc == 0
+  failed_when: false
+  when:
+    - is_gluster_control
+    - gluster_cli.rc == 0
+    - (gluster_brick_hosts | default([])) | length > 0
+
+- name: Remove GlusterFS packages
+  ansible.builtin.package:
+    name: "{{ gluster_packages }}"
+    state: absent
+
+- name: Autoremove unused deps
+  ansible.builtin.apt:
+    autoremove: true
+  when: ansible_facts.os_family == "Debian"
+
+- name: Remove GlusterFS state directories (best-effort)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ gluster_cleanup_paths }}"
+  failed_when: false
+  when: gluster_purge | default(false)

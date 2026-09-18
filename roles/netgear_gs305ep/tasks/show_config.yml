@@ -1,0 +1,53 @@
+---
+- name: Get port settings
+  ansible.builtin.command:
+    argv:
+      - "{{ ntgrrc_bin }}"
+      - "port"
+      - "settings"
+      - "--address"
+      - "{{ gs305ep_config.address }}"
+      - "--token-dir"
+      - "{{ ntgrrc_tmpdir.path }}"
+      # - "--output-format"
+      # - "json"
+  register: ports_settings
+  changed_when: false
+
+- name: Show current port settings
+  ansible.builtin.debug:
+    msg: "{{ ports_settings.stdout_lines }}"
+
+- name: Get current poe port settings
+  ansible.builtin.command:
+    argv:
+      - "{{ ntgrrc_bin }}"
+      - "poe"
+      - "settings"
+      - "--address"
+      - "{{ gs305ep_config.address }}"
+      - "--token-dir"
+      - "{{ ntgrrc_tmpdir.path }}"
+  register: poe_settings
+  changed_when: false
+
+- name: Show current poe port status
+  ansible.builtin.debug:
+    msg: "{{ poe_settings.stdout_lines }}"
+
+- name: Get current poe port status
+  ansible.builtin.command:
+    argv:
+      - "{{ ntgrrc_bin }}"
+      - "poe"
+      - "status"
+      - "--address"
+      - "{{ gs305ep_config.address }}"
+      - "--token-dir"
+      - "{{ ntgrrc_tmpdir.path }}"
+  register: poe_status
+  changed_when: false
+
+- name: Show current poe port status
+  ansible.builtin.debug:
+    msg: "{{ poe_status.stdout_lines }}"

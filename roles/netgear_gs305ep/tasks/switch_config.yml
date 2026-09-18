@@ -1,0 +1,81 @@
+---
+- name: Build per-port mapping from switch_port_targets group
+  ansible.builtin.set_fact:
+    gs305ep_ports: >-
+      {{ (gs305ep_ports | default([])) + [ {
+          'port': (hostvars[item].switch_port | int),
+          'ip': hostvars[item].ansible_host,
+          'mac': (hostvars[item].mac | default('') | upper | replace('-', ':') | trim),
+          'name': item,
+          'speed': (hostvars[item].speed | default(gs305ep_port_defaults.speed | default('Auto'))),
+          'flow_control': (hostvars[item].flow_control | default(gs305ep_port_defaults.flow_control | default('On'))),
+          'mode': (hostvars[item].mode | default(gs305ep_port_defaults.mode | default('legacy'))),
+          'power': (hostvars[item].power | default(gs305ep_port_defaults.power | default('enable')))
+        } ] }}
+  loop: "{{ switch_port_targets }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Sort mapping by port
+  ansible.builtin.set_fact:
+    gs305ep_ports: "{{ gs305ep_ports | sort(attribute='port') }}"
+
+- name: Ensure ntgrrc is executable
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/ntgrrc"
+    mode: '0755'
+
+- name: Ensure output directory exists
+  ansible.builtin.file:
+    path: "{{ role_path }}/build"
+    state: directory
+    mode: "0755"
+
+- name: Render GS305EP configuration JSON from inventory
+  ansible.builtin.template:
+    src: "gs305ep_config.json.j2"
+    dest: "{{ role_path }}/build/{{ gs305ep_config_output }}"
+    mode: "0640"
+
+- name: Read generated config (debug)
+  ansible.builtin.slurp:
+    src: "{{ role_path }}/build/{{ gs305ep_config_output }}"
+  register: gs305ep_config_b64
+
+- name: Decode and parse GS305EP JSON to fact
+  ansible.builtin.set_fact:
+    gs305ep_config: "{{ gs305ep_config_b64.content | b64decode | from_json }}"
+
+- name: Print generated GS305EP JSON
+  ansible.builtin.debug:
+    var: gs305ep_config
+  when: debug | default(false)
+
+- name: Create temp dir for ntgrrc session
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: ntgrrc_
+  register: ntgrrc_tmpdir
+
+- name: Define ntgrrc cookie path
+  ansible.builtin.set_fact:
+    ntgrrc_cookie: "{{ ntgrrc_tmpdir.path }}/session.cookie"
+  run_once: true
+
+- name: Login to GS305EP switch and get session token
+  ansible.builtin.command:
+    argv:
+      - "{{ ntgrrc_bin }}"
+      - "login"
+      - "--address"
+      - "{{ gs305ep_config.address }}"
+      - "--password"
+      - "{{ gs305ep_config.password }}"
+      - "--token-dir"
+      - "{{ ntgrrc_tmpdir.path }}"
+  register: ntgrrc_login
+  retries: 3
+  delay: 2
+  until: ntgrrc_login.rc == 0
+  args:
+    creates: "{{ ntgrrc_cookie }}"

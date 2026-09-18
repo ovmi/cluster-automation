@@ -1,0 +1,11 @@
+[Unit]
+Description=Prometheus Monitoring
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart={{ prometheus_service_exec_start }}
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

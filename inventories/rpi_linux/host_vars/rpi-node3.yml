@@ -1,0 +1,2 @@
+ansible_password: "{{ vault_rpi_node3_password }}"
+ansible_become_password: "{{ vault_rpi_node3_password }}"

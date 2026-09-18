@@ -1,0 +1,31 @@
+---
+- name: Enable and start Docker services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - docker.service
+    - containerd.service
+
+- name: Add user to docker group
+  ansible.builtin.user:
+    name: "{{ docker_user }}"
+    groups: "{{ docker_group }}"
+    append: true
+
+- name: Reboot control node after Docker install
+  ansible.builtin.reboot:
+    msg: "Rebooting after Docker installation"
+    pre_reboot_delay: 5
+    reboot_timeout: 600
+    test_command: whoami
+  when: inventory_hostname in groups['control']
+
+- name: Reboot worker nodes after Docker install
+  ansible.builtin.reboot:
+    msg: "Rebooting after Docker installation"
+    pre_reboot_delay: 5
+    reboot_timeout: 600
+    test_command: whoami
+  when: inventory_hostname in groups['workers']

@@ -1,0 +1,54 @@
+---
+- name: Validate K3s kubeconfig exists on gluster_control_host
+  run_once: true
+  delegate_to: "{{ gluster_control_host }}"
+  ansible.builtin.stat:
+    path: /etc/rancher/k3s/k3s.yaml
+  register: k3s_kubeconfig
+
+- name: Fail if gluster_control_host is not the K3s control node
+  run_once: true
+  ansible.builtin.assert:
+    that:
+      - k3s_kubeconfig.stat.exists
+    fail_msg: >-
+      /etc/rancher/k3s/k3s.yaml not found on {{ gluster_control_host }}.
+      k3s_glusterfs must run on the K3s control-plane node.
+
+- name: Apply K3S resources for GlusterFS
+  run_once: true
+  delegate_to: "{{ gluster_control_host }}"
+  block:
+    - name: Ensure kubernetes python lib is present on the delegate host
+      ansible.builtin.apt:
+        name: python3-kubernetes
+        state: present
+        update_cache: true
+
+    - name: Create StorageClass
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig_path }}"
+        definition: "{{ lookup('template', 'gluster-sc.yaml.j2') }}"
+
+    - name: Create PersistentVolume
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig_path }}"
+        definition: "{{ lookup('template', 'gluster-pv.yaml.j2') }}"
+
+    - name: Create PersistentVolumeClaim
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig_path }}"
+        definition: "{{ lookup('template', 'gluster-pvc.yaml.j2') }}"
+
+- name: Run gluster pod test and deploy production pod using GlusterFS
+  run_once: true
+  delegate_to: "{{ gluster_control_host }}"
+  block:
+    - name: Run gluster pod test
+      ansible.builtin.include_tasks: gluster_pod_test.yml
+
+    - name: Deploy production pod using GlusterFS
+      ansible.builtin.include_tasks: gluster_deployment.yml

@@ -1,0 +1,14 @@
+---
+required_packages:
+  - vim
+  - net-tools
+  - python3
+  - python3-pip
+
+fallback_nameserver: "8.8.8.8"
+
+vimrc_src: "vimrc"
+vimrc_path: "/home/{{ ansible_user }}/.vimrc"
+vimrc_owner: "{{ ansible_user }}"
+vimrc_group: "{{ ansible_user }}"
+vimrc_mode: "0644"

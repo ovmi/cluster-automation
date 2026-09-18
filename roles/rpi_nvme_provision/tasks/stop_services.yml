@@ -1,0 +1,56 @@
+---
+- name: Gather NFS service facts
+  ansible.builtin.service_facts:
+
+- name: Detect if NFS is active
+  ansible.builtin.set_fact:
+    nfs_active: "{{ ansible_facts.services.get('nfs-kernel-server', {}).get('state') == 'running' }}"
+    dnsmasq_active: "{{ ansible_facts.services.get('dnsmasq', {}).get('state') == 'running' }}"
+    tftpd_hpa_active: "{{ ansible_facts.services.get('tftpd-hpa', {}).get('state') == 'running' }}"
+
+- name: Unexport all exports
+  ansible.builtin.command: exportfs -ua
+  changed_when: false
+  failed_when: false
+  when: nfs_active | default(false)
+
+- name: Stop NFS server
+  ansible.builtin.systemd:
+    name: nfs-kernel-server
+    state: stopped
+  when: nfs_active | default(false)
+
+- name: Stop dnsmasq (DHCP/DNS/TFTP) if active
+  ansible.builtin.systemd:
+    name: dnsmasq
+    state: stopped
+  when: dnsmasq_active | default(false)
+
+- name: Stop tftpd-hpa if active
+  ansible.builtin.systemd:
+    name: tftpd-hpa
+    state: stopped
+  when: tftpd_hpa_active | default(false)
+
+- name: Unmount all NFS-root boot/firmware submounts (nested inside rootfs for netboot)
+  become: true
+  ansible.builtin.shell: |
+    umount -f {{ nfs_root_dir | default('/srv/nfs') }}/rpi-*/boot/firmware 2>/dev/null || true
+  changed_when: false
+
+- name: Unmount all TFTP mounts (bootfs for netboot)
+  become: true
+  ansible.builtin.shell: |
+    umount -f {{ tftp_dir | default('/srv/tftp') }}/* 2>/dev/null || true
+  changed_when: false
+
+- name: Unmount all NFS-root mounts (rootfs for netboot)
+  become: true
+  ansible.builtin.shell: |
+    umount -f {{ nfs_root_dir | default('/srv/nfs') }}/rpi-* 2>/dev/null || true
+  changed_when: false
+
+- name: Sync filesystem before unmount
+  become: true
+  ansible.builtin.command: sync
+  changed_when: false

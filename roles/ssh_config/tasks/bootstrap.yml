@@ -1,0 +1,22 @@
+---
+- name: Assert controller public key exists
+  ansible.builtin.assert:
+    that:
+      - lookup('file', ssh_public_key_path | expanduser) | length > 0
+  delegate_to: localhost
+  run_once: true
+
+- name: Debug ssh_targets
+  ansible.builtin.debug:
+    var: ssh_targets
+  when: debug | default(false)
+
+- name: Install controller public key on targets (bootstrap)
+  ansible.builtin.include_tasks: install_key.yml
+  loop: "{{ ssh_targets }}"
+  loop_control:
+    loop_var: target
+    label: "{{ target }}"
+  when:
+    - ssh_targets is defined
+    - ssh_targets | length > 0

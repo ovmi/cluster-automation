@@ -1,0 +1,71 @@
+---
+- name: Provisioning NVMe device attached to control node (PCIe)
+  hosts: control
+  become: true
+  gather_facts: false
+
+# -----------------------------------------------------------------
+# | Release date	|  Debian Codename	|	Kernel Version	| cgroups |
+# -----------------------------------------------------------------
+# |  2022-01-28	  |      Bullseye		  |		  5.15	      |         |
+# |  2022-04-07	  |      Bullseye		  |		  5.15	      |         |
+# |  2022-09-07	  |      Bullseye		  |		  5.15	      |         |
+# |  2022-09-26	  |      Bullseye		  |		  5.15	      |         |
+# |  2023-02-22	  |      Bullseye		  |		  5.15	      |         |
+# |  2023-05-03	  |      Bookworm		  |		  6.1	        |         |
+# |  2023-10-10	  |      Bookworm		  |		  6.1	        |         |
+# |  2023-12-06	  |      Bookworm		  |		  6.1	        |         |
+# |  2024-03-13	  |      Bookworm		  |		  6.1	        |         |
+# |  2024-03-15	  |      Bookworm		  |		  6.1	        |         |
+# |  2024-07-04	  |      Bookworm		  |		  6.1	        |         |
+# |  2024-10-28	  |      Bookworm		  |		  6.1	        |    x    |
+# |  2024-11-18	  |      Bookworm		  |		  6.1	        |    x    |
+# |  2024-11-19	  |      Bookworm		  |		  6.1	        |         |
+# |  2025-05-07	  |      Bookworm 	  |		  6.1	        |         |
+# |  2025-05-13	  |      Bookworm		  |		  6.1	        |         |
+# |  2025-10-02	  |      Trixie		    |		  6.12	      |         |
+# |  2025-11-24	  |      Trixie		    |		  6.12	      |         |
+# |  2025-12-04	  |      Trixie		    |		  6.12	      |         |
+# -----------------------------------------------------------------
+
+# -----------------------------------------------------
+# | Ubuntu Version | Codename        | Kernel Version |
+# -----------------------------------------------------
+# |    22.04       | Jammy Jellyfish |    5.15     	  |
+# |    22.10       | Kinetic Kudu    |    5.19     	  |
+# |    23.04       | Lunar Lobster   |    6.2      	  |
+# |    23.10       | Mantic Minotaur |    6.5      	  |
+# |    24.04       | Noble Numbat    |    6.8      	  |
+# |    24.10       | Oracular Oriole |    6.11     	  |
+# |    25.04       | Plucky Puffin   |    6.14     	  |
+# |    25.10       | Questing Quokka |    6.17     	  |
+# -----------------------------------------------------
+
+  vars:
+    images:           # Node map used to flash OS images (key: node name, value: image URL)
+      # Available images for Raspberry Pi 4/5 (arm64) with NVMe support:
+      # Ubuntu Server 24.04: "https://old-releases.ubuntu.com/releases/24.04/ubuntu-24.04-preinstalled-server-arm64+raspi.img.xz"
+      # Raspbian OS Lite: "https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2025-05-13/2025-05-13-raspios-bookworm-arm64-lite.img.xz"
+      # Raspbian OS Full: "https://downloads.raspberrypi.com/raspios_full_arm64/images/raspios_full_arm64-2025-12-04/2025-12-04-raspios-trixie-arm64-full.img.xz"
+      node0: "https://old-releases.ubuntu.com/releases/24.04/ubuntu-24.04-preinstalled-server-arm64+raspi.img.xz"
+      node1: "https://old-releases.ubuntu.com/releases/24.04/ubuntu-24.04-preinstalled-server-arm64+raspi.img.xz"
+      node2: "https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2025-05-13/2025-05-13-raspios-bookworm-arm64-lite.img.xz"
+      node3: "https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2025-05-13/2025-05-13-raspios-bookworm-arm64-lite.img.xz"
+
+  pre_tasks:
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+    - name: Check parameters for NVMe slot
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: slot_check.yml
+  roles:
+    - rpi_nvme_provision
+
+# Example command line to run this playbook:
+# Provision NVMe devices on nodes given as parameters with NVMe flash (formatting) enabled:
+# ansible-playbook playbooks/rpi_nvme_provision.yml -e nodes=node0,node1 -e slot=a -e nvme_format=true [ -e debug=true ]
+# Provision NVMe devices on nodes given as parameters with NVMe flash (formatting) disabled:
+# ansible-playbook playbooks/rpi_nvme_provision.yml -e nodes=node0 -e slot=a -e nvme_format=false [ -e debug=true ]

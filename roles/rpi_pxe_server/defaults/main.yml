@@ -1,0 +1,23 @@
+# Default variables for rpi_pxe_server role
+pxe_nodes: []                 # List of per-node partition mappings
+
+# PXE boot configuration
+pxe_interface: eth0           # Network interface for PXE/DHCP server
+pxe_proxy_network: "{{ proxy_ip }}" # Proxy network for PXE/DHCP server
+
+pxe_control_node: "node0"      # control node on which nfs/tftp mounts are performed
+
+# TFTP configuration
+tftp_dir: "/srv/tftp"         # TFTP base mount point
+
+# NFS configuration
+nfs_root_dir: "/srv/nfs"      # NFS base mount point
+
+bootfs_fstype: "vfat"         # BOOT partition filesystem
+rootfs_fstype: "ext4"         # ROOT partition filesystem
+
+bootfs_opts: "defaults"       # BOOT partition mount options
+rootfs_opts: "defaults"       # ROOT partition mount options
+
+nfs_action: "install"         # NFS mode: install or clean
+debug: false                  # Enable debug output

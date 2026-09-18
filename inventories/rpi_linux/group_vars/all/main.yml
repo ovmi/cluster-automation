@@ -1,0 +1,14 @@
+---
+gluster_control: node0        # Gluster control node
+gluster_bricks:               # GlusterFS brick nodes
+  - node3
+
+mon_control: node0            # node to run monitoring server (Prometheus, Grafana)
+mon_workers: []               # list of workernodes to run monitoring clients (node exporters, iperf3 clients)
+
+tftp_server: node0            # node to run TFTP server
+nfs_server: node0             # node to run NFS server
+
+lte_bridge_node: node3        # node with LTE modem and bridge setup
+
+ansible_ssh_private_key_file: ~/.ssh/id_ed25519_cluster

@@ -1,0 +1,16 @@
+---
+nvme_device: "/dev/nvme0n1"   # NVMe device that holds all per-node partitions
+
+nvme_map:                     # mapping of logical nodes to physical NVMe devices
+  node0:
+    a: { boot: 1, root: 2 }
+    b: { boot: 3, root: 4 }
+  node1:
+    a: { boot: 5, root: 6 }
+    b: { boot: 7, root: 8 }
+  node2:
+    a: { boot: 9, root: 10 }
+    b: { boot: 11, root: 12 }
+  node3:
+    a: { boot: 13, root: 14 }
+    b: { boot: 15, root: 16 }

@@ -1,0 +1,32 @@
+---
+# Derive the LTE bridge node's LAN IP so the monitor script knows where to
+# redirect traffic when the upstream gateway fails.  ansible_host is always
+# set from inventory, so no fact-gather is required.
+- name: Set LTE bridge host IP for cluster-gw-monitor template
+  ansible.builtin.set_fact:
+    lte_bridge_host_ip: "{{ hostvars[lte_bridge_host].ansible_host }}"
+
+- name: Deploy cluster gateway monitor script
+  ansible.builtin.template:
+    src: cluster-gw-monitor.sh.j2
+    dest: /usr/local/bin/cluster-gw-monitor.sh
+    mode: "0755"
+    owner: root
+    group: root
+  notify: Restart cluster-gw-monitor
+
+- name: Deploy cluster-gw-monitor systemd unit
+  ansible.builtin.template:
+    src: cluster-gw-monitor.service.j2
+    dest: /etc/systemd/system/cluster-gw-monitor.service
+    mode: "0644"
+    owner: root
+    group: root
+  notify: Restart cluster-gw-monitor
+
+- name: Enable and start cluster-gw-monitor
+  ansible.builtin.systemd:
+    name: cluster-gw-monitor
+    enabled: true
+    state: started
+    daemon_reload: true

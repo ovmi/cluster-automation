@@ -1,0 +1,73 @@
+---
+- name: Resolve EEPROM targets
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    target_group: rpi_boot_targets
+
+  tasks:
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+
+    - name: Add resolved nodes to rpi_boot targets group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: "{{ target_group }}"
+      loop: "{{ resolved_hosts }}"
+
+- name: Configure Raspberry Pi boot mode on cluster nodes via EEPROM
+  hosts: rpi_boot_targets
+  gather_facts: false
+  become: true
+  serial: 1
+
+  pre_tasks:
+    - name: Check parameters for boot mode
+      ansible.builtin.include_role:
+        name: rpi_bootmode
+        tasks_from: bootmode_check.yml
+
+  roles:
+    - rpi_bootmode
+
+- name: Recover SSH connectivity from controller
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    target_group: rpi_boot_targets
+
+  tasks:
+    - name: Bootstrap SSH on targets after reboot (from localhost)
+      ansible.builtin.include_role:
+        name: ssh_config
+      vars:
+        ssh_mode: bootstrap
+        ssh_cleanup: true
+        ssh_targets_group: "{{ target_group }}"
+
+- name: Verify EEPROM configuration after reboot
+  hosts: rpi_boot_targets
+  gather_facts: false
+  become: true
+  serial: 1
+
+  tasks:
+    - name: Read EEPROM configuration and validate BOOT_ORDER
+      ansible.builtin.import_role:
+        name: rpi_bootmode
+        tasks_from: eeprom_verify.yml
+
+# Configure Raspberry Pi boot mode options (e.g., USB boot, network boot).
+# Example command line to run this playbook (set slot A and check expected device):
+# Change the boot mode to SD card on the entire cluster:
+# ansible-playbook playbooks/rpi_bootmode.yml -e boot_mode=sdcard_prio [-e debug=true]
+# Change the boot mode to NVMe priority on node0:
+# ansible-playbook playbooks/rpi_bootmode.yml -e nodes=node0 -e boot_mode=nvme_prio [-e debug=true]
+# Change the boot mode to Network boot priority on nodes node1, node2, and node3:
+# ansible-playbook playbooks/rpi_bootmode.yml -e nodes=node1,node2,node3 -e boot_mode=net_prio [-e debug=true]

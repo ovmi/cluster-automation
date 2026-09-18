@@ -1,0 +1,23 @@
+---
+- name: Ping connectivity check
+  ansible.builtin.ping:
+
+- name: Measure round-trip time
+  ansible.builtin.command:
+    cmd: ping -c 3 -W 2 {{ ansible_host }}
+  register: ping_rtt
+  changed_when: false
+  delegate_to: localhost
+  when: debug | default(false)
+
+- name: Display ping timing
+  ansible.builtin.debug:
+    var: ping_rtt.stdout_lines
+  when: debug | default(false)
+
+- name: Install monitoring tools
+  ansible.builtin.apt:
+    name:
+      - iperf3
+    state: present
+    update_cache: false

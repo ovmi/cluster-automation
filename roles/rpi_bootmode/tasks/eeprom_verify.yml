@@ -1,0 +1,12 @@
+---
+- name: Read EEPROM configuration after reboot
+  ansible.builtin.command: rpi-eeprom-config
+  register: eeprom_verify
+  changed_when: false
+
+- name: Validate BOOT_ORDER
+  ansible.builtin.assert:
+    that:
+      - "'BOOT_ORDER=' ~ boot_order in eeprom_verify.stdout"
+    fail_msg: "EEPROM BOOT_ORDER not applied on {{ inventory_hostname }}"
+    success_msg: "EEPROM BOOT_ORDER verified on {{ inventory_hostname }}"

@@ -1,0 +1,67 @@
+---
+- name: Derive worker nodes from shutdown list
+  ansible.builtin.set_fact:
+    shutdown_worker_nodes: "{{ pm_nodes_list | difference(['node0']) }}"
+    shutdown_control_node: "{{ 'node0' if 'node0' in pm_nodes_list else omit }}"
+
+- name: Resolve shutdown hostnames to real hosts
+  ansible.builtin.set_fact:
+    shutdown_worker_hosts: "{{ shutdown_worker_nodes | map('extract', pm_node_host_map) | list }}"
+    shutdown_control_host: "{{ pm_node_host_map[shutdown_control_node] if shutdown_control_node is defined else omit }}"
+
+- name: Show shutdown plan
+  ansible.builtin.debug:
+    msg:
+      workers: "{{ shutdown_worker_hosts }}"
+      control: "{{ shutdown_control_host }}"
+  when: debug | default(false)
+
+- name: Ensure all unsaved data is flushed to disk
+  ansible.builtin.command: sync
+  delegate_to: "{{ item }}"
+  loop: "{{ shutdown_worker_hosts }}"
+  when: shutdown_worker_hosts | length > 0
+  changed_when: false
+
+- name: Shutdown worker nodes
+  ansible.builtin.command: /sbin/shutdown -h now
+  become: true
+  async: 1
+  poll: 0
+  delegate_to: "{{ item }}"
+  loop: "{{ shutdown_worker_hosts }}"
+  when: shutdown_worker_hosts | length > 0
+  changed_when: true
+  failed_when: false
+
+- name: Wait for workers to stop responding on /sbin/shutdown
+  ansible.builtin.wait_for:
+    host: "{{ hostvars[item].ansible_host | default(item) }}"
+    port: 22
+    state: stopped
+    timeout: 180
+  delegate_to: localhost
+  loop: "{{ shutdown_worker_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+  when: shutdown_worker_hosts | length > 0
+
+- name: Pause to allow workers to power off
+  ansible.builtin.pause:
+    seconds: 10
+
+- name: Ensure all unsaved data is flushed to disk
+  ansible.builtin.command: sync
+  changed_when: false
+  delegate_to: "{{ shutdown_control_host }}"
+  when: shutdown_control_host | default(false)
+
+- name: Shutdown control node
+  ansible.builtin.command: /sbin/shutdown -h now
+  become: true
+  async: 1
+  poll: 0
+  changed_when: true
+  failed_when: false
+  delegate_to: "{{ shutdown_control_host }}"
+  when: shutdown_control_host | default(false)

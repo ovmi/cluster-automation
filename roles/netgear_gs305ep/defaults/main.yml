@@ -1,0 +1,16 @@
+#  Default configuration for Netgear GS305EP switch control
+gs305ep_config_output: "gs305ep_config.json"  # Output filename for generated switch config JSON
+gs305ep_config: []          # Switch configuration data structure
+
+# Defaults for port-level behavior (can be overridden per-host)
+gs305ep_port_defaults:
+  speed: "Auto"             # Port speed: "Auto", "10Mbps", "100Mbps", "1Gbps"
+  flow_control: "On"        # Flow control: "On" or "Off"
+  mode: "legacy"            # PoE mode for GS305EP
+  power: "enable"           # "enable" or "disable"
+
+ntgrrc_bin: "{{ role_path }}/files/ntgrrc"   # Path to ntgrrc binary within the role
+
+config: false               # disable switch configuration by default
+poe_action: null            # no PoE action by default
+debug: false                # disable debug output by default

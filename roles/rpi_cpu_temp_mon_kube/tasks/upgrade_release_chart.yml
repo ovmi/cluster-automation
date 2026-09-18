@@ -1,0 +1,24 @@
+- name: Template Helm values.yaml
+  ansible.builtin.template:
+    src: release-values.yaml.j2
+    dest: /tmp/release_values.yaml
+    mode: '0600'
+
+- name: Upgrade release via Helm with custom values file
+  ansible.builtin.command:
+    cmd: >
+      helm upgrade {{ helm_release_monitoring }} prometheus-community/kube-prometheus-stack
+      -n {{ monitoring_namespace }}
+      --install
+      -f /tmp/release_values.yaml
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  become: true
+  register: helm_result
+  changed_when: helm_result.rc == 0
+  failed_when: helm_result.rc != 0
+
+- name: Remove templated Helm values file (contains the SMTP password in plaintext)
+  ansible.builtin.file:
+    path: /tmp/release_values.yaml
+    state: absent

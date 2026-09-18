@@ -1,0 +1,11 @@
+---
+- name: Configure Grafana in K3S cluster
+  ansible.builtin.import_tasks: grafana_config.yml
+  when: inventory_hostname == k3s_control_node
+
+- name: Upgrade deployed Helm chart
+  ansible.builtin.import_tasks: upgrade_release_chart.yml
+  when: inventory_hostname == k3s_control_node
+
+- name: Configure CPU temperature monitoring
+  ansible.builtin.import_tasks: cpu_temp_mon_config.yml

@@ -1,0 +1,16 @@
+---
+- name: Include pre-installation tasks
+  ansible.builtin.include_tasks: pre_install.yml
+  when: docker_mode == 'install'
+
+- name: Include Docker installation
+  ansible.builtin.include_tasks: docker_install.yml
+  when: docker_mode == 'install'
+
+- name: Include post-install configuration
+  ansible.builtin.include_tasks: post_install.yml
+  when: docker_mode == 'install'
+
+- name: Include Docker uninstallation
+  ansible.builtin.include_tasks: docker_uninstall.yml
+  when: docker_mode == 'remove'

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ gluster_pv_name }}
+spec:
+  capacity:
+    storage: {{ gluster_static_pv_size }}
+  accessModes:
+    - {{ gluster_access_mode }}
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ gluster_storage_class_name }}
+  hostPath:
+    path: "{{ gluster_hostpath }}"

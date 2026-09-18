@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Restores policy routing tables and ip rules on node3 after reboot.
+# Called by route-monitor.service via ExecStartPre.
+# Idempotent: every operation checks before applying.
+
+LAN_GW="{{ lan_gateway_ip }}"
+LAN_IF="{{ lan_iface }}"
+LTE_IF="{{ lte_active_iface }}"
+HOST_IP="{{ ansible_host }}"
+
+log() { logger -t restore-routes -p daemon.info -- "$*"; echo "$*"; }
+
+err() { logger -t restore-routes -p daemon.err -- "ERROR: $*"; echo "ERROR: $*" >&2; }
+
+# --- routing table names ---------------------------------------------------
+for entry in "200 lte" "201 lan"; do
+    grep -qF "$entry" /etc/iproute2/rt_tables || {
+        echo "$entry" >> /etc/iproute2/rt_tables
+        log "Added rt_tables entry: $entry"
+    }
+done
+
+# --- sysctl ip_forward ------------------------------------------------------
+sysctl -q -w net.ipv4.ip_forward=1
+
+# --- LAN routing table ------------------------------------------------------
+if ! ip route show table lan 2>/dev/null | grep -q "default via ${LAN_GW}"; then
+    ip route add default via "${LAN_GW}" dev "${LAN_IF}" table lan 2>/dev/null \
+        && log "Restored LAN table: default via ${LAN_GW}" \
+        || err "Failed to restore LAN table route"
+fi
+
+# --- LTE routing table (ECM mode only — gateway is static) ------------------
+{% if lte_mode == 'ecm' %}
+LTE_GW="{{ lte_gateway_ip }}"
+if ! ip route show table lte 2>/dev/null | grep -q "default via ${LTE_GW}"; then
+    ip route add default via "${LTE_GW}" dev "${LTE_IF}" table lte 2>/dev/null \
+        && log "Restored LTE table: default via ${LTE_GW}" \
+        || err "Failed to restore LTE table route"
+fi
+{% else %}
+# QMI mode: the QMI data session sets the LTE gateway dynamically at connect
+# time.  The ip rule for table lte is still added below so the monitor can
+# activate it once the session is up.
+log "QMI mode: skipping static LTE table entry — set by QMI bring-up"
+{% endif %}
+
+# --- policy routing rules ---------------------------------------------------
+if ! ip rule show 2>/dev/null | grep -q "from ${HOST_IP} lookup lan"; then
+    ip rule add from "${HOST_IP}" lookup lan priority 100 2>/dev/null \
+        && log "Restored ip rule: from ${HOST_IP} lookup lan (priority 100)" \
+        || err "Failed to add ip rule for lan table"
+fi
+
+if ! ip rule show 2>/dev/null | grep -q "from ${HOST_IP} lookup lte"; then
+    ip rule add from "${HOST_IP}" lookup lte priority 200 2>/dev/null \
+        && log "Restored ip rule: from ${HOST_IP} lookup lte (priority 200)" \
+        || err "Failed to add ip rule for lte table"
+fi
+
+log "restore-routes complete"

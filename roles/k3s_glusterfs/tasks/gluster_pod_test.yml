@@ -1,0 +1,37 @@
+- name: Launch standalone test pod using GlusterFS
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition: "{{ lookup('template', 'gluster-test-pod.yaml.j2') }}"
+
+- name: Wait for gluster pod test pod to be Ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig_path }}"
+    kind: Pod
+    namespace: "{{ gluster_namespace }}"
+    name: "{{ gluster_pod_test_name }}"
+  register: pod_status
+  until: pod_status.resources[0].status.containerStatuses[0].ready | default(false)
+  retries: 10
+  delay: 6
+
+- name: Exec into gluster pod test pod and validate written file
+  kubernetes.core.k8s_exec:
+    kubeconfig: "{{ kubeconfig_path }}"
+    namespace: "{{ gluster_namespace }}"
+    pod: "{{ gluster_pod_test_name }}"
+    container: busybox
+    command: ["cat", "/data/test.txt"]
+  register: pod_output
+
+- name: Show result of volume write test
+  ansible.builtin.debug:
+    msg: "Content of /data/test.txt in test pod: {{ pod_output.stdout }}"
+
+- name: Clean up test pod
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ kubeconfig_path }}"
+    kind: Pod
+    name: "{{ gluster_pod_test_name }}"
+    namespace: "{{ gluster_namespace }}"

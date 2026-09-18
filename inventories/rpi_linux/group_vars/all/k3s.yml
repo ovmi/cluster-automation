@@ -1,0 +1,21 @@
+---
+k3s_control: node0                  # logical control node ID
+k3s_workers: [node1, node2, node3]  # list of worker nodes for K3s agent installation
+
+monitoring_namespace: monitoring  # Kubernetes namespace for the monitoring stack
+traefik_namespace: traefik        # Kubernetes namespace for Traefik ingress (in case not bundled in K3S - kube-system namespace)
+
+helm_release_monitoring: monitoring # Helm release name for Prometheus + Grafana (matches monitoring namespace)
+helm_release_traefik: traefik     # Helm release name for Traefik (in case not installed already)
+
+# K3s admin account and paths — shared across k3s_setup, k3s_glusterfs, k3s_monitoring_stack, and rpi_cpu_temp_mon_kube.
+k3s_admin_user: k3sadmin
+k3s_admin_group: k3sadmin
+k3s_kubeconfig: "/etc/rancher/k3s/k3s.yaml"
+k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
+kube_manifests_dir: "/home/{{ k3s_admin_user }}/k3s-manifests"
+k3s_cluster_domain: "cluster.local" # K3S cluster domain name (default: cluster.local)
+k3s_api_port: 6443
+
+k3s_namespaces:                   # namespaces to create in the cluster
+  - "{{ monitoring_namespace }}"

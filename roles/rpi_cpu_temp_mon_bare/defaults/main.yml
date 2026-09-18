@@ -1,0 +1,44 @@
+node_exporter_version: "1.7.0"
+node_exporter_collector: /var/lib/node_exporter/textfile_collector
+node_exporter_user: node_exporter
+node_exporter_group: node_exporter
+node_exporter_bin: /usr/local/bin/node_exporter
+node_exporter_service_file: /etc/systemd/system/node_exporter.service
+node_exporter_service_name: node_exporter
+node_exporter_service_user: node_exporter
+node_exporter_service_group: node_exporter
+node_exporter_service_mode: '0644'
+node_exporter_port: '9100'
+node_exporter_service_template: node_exporter.service.j2
+node_exporter_service_exec_start: |
+      /usr/local/bin/node_exporter \
+      --collector.textfile.directory={{ node_exporter_collector }} \
+      --web.listen-address=:{{ node_exporter_port }}
+
+prometheus_version: "2.52.0"
+prometheus_config_dir: /etc/prometheus
+prometheus_data_dir: /var/lib/prometheus
+prometheus_bin: /usr/local/bin/prometheus
+prometheus_service_file: /etc/systemd/system/prometheus.service
+prometheus_service_name: prometheus
+prometheus_service_user: prometheus
+prometheus_service_group: prometheus
+prometheus_service_mode: '0644'
+prometheus_port: '9090'
+prometheus_service_template: prometheus.service.j2
+prometheus_service_exec_start: |
+      /usr/local/bin/prometheus \
+      --config.file={{ prometheus_config_dir }}/prometheus.yml \
+      --storage.tsdb.path={{ prometheus_data_dir }} \
+      --web.listen-address=:{{ prometheus_port }}
+
+prometheus_service_web_config: /etc/prometheus/web.yml
+prometheus_service_web_config_template: web.yml.j2
+prometheus_service_web_config_mode: '0644'
+prometheus_service_web_config_user: prometheus
+prometheus_service_web_config_group: prometheus
+prometheus_service_web_config_dir: /etc/prometheus
+prometheus_service_web_config_dir_mode: '0755'
+prometheus_service_web_config_dir_user: prometheus
+prometheus_service_web_config_dir_group: prometheus
+prometheus_service_web_config_dir_template: web.yml.j2

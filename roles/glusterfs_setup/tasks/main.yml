@@ -1,0 +1,25 @@
+---
+- name: Include setup tasks
+  ansible.builtin.import_tasks: setup.yml
+  when: glusterfs_mode == 'install'
+
+- name: Include brick node tasks
+  ansible.builtin.import_tasks: brick_node.yml
+  when:
+    - glusterfs_mode == 'install'
+    - inventory_hostname in (gluster_brick_hosts | default([]))
+
+- name: Include control node tasks
+  ansible.builtin.import_tasks: control_node.yml
+  run_once: true
+  when:
+    - glusterfs_mode == 'install'
+    - inventory_hostname == (gluster_control_host | default(''))
+
+- name: Include mount volume tasks
+  ansible.builtin.import_tasks: mount_volume.yml
+  when: glusterfs_mode == 'install'
+
+- name: Include remove tasks
+  ansible.builtin.import_tasks: remove_volume.yml
+  when: glusterfs_mode == 'remove'

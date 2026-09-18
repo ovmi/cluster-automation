@@ -1,0 +1,34 @@
+---
+- name: Resolve reboot hostnames to real hosts
+  ansible.builtin.set_fact:
+    reboot_hosts: "{{ pm_nodes_list | map('extract', pm_node_host_map) | list }}"
+
+- name: Show reboot per node
+  ansible.builtin.debug:
+    msg: "Rebooting {{ item }}"
+  loop: "{{ reboot_hosts }}"
+  when: debug | default(false)
+
+- name: Trigger reboot on selected cluster nodes
+  ansible.builtin.reboot:
+    pre_reboot_delay: 5
+    reboot_timeout: 120
+    post_reboot_delay: 10
+    test_command: "whoami"
+  become: true
+  delegate_to: "{{ item }}"
+  loop: "{{ reboot_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+  changed_when: true
+  failed_when: false
+
+- name: Wait for SSH on rebooted nodes
+  ansible.builtin.wait_for_connection:
+    timeout: 120
+    delay: 5
+  delegate_to: "{{ item }}"
+  loop: "{{ reboot_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+  changed_when: false

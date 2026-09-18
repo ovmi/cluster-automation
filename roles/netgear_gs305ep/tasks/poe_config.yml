@@ -1,0 +1,64 @@
+---
+- name: Enable PoE on designated ports
+  ansible.builtin.command:
+    argv:
+      - "{{ ntgrrc_bin }}"
+      - "poe"
+      - "set"
+      - "--address"
+      - "{{ gs305ep_config.address }}"
+      - "--port"
+      - "{{ item.port | string }}"
+      - "--power"
+      - "enable"
+      - "--token-dir"
+      - "{{ ntgrrc_tmpdir.path }}"
+  loop: "{{ gs305ep_ports | selectattr('power', 'equalto', 'enable') | list }}"
+  loop_control:
+    label: "port {{ item.port }} ({{ item.name }})"
+  when: poe_action == 'enable'
+  register: poe_batch_control
+  changed_when: poe_batch_control.rc == 0
+  failed_when: poe_batch_control.rc != 0
+
+- name: Disable PoE on designated ports
+  ansible.builtin.command:
+    argv:
+      - "{{ ntgrrc_bin }}"
+      - "poe"
+      - "set"
+      - "--address"
+      - "{{ gs305ep_config.address }}"
+      - "--port"
+      - "{{ item.port | string }}"
+      - "--power"
+      - "disable"
+      - "--token-dir"
+      - "{{ ntgrrc_tmpdir.path }}"
+  loop: "{{ gs305ep_ports | selectattr('power', 'equalto', 'enable') | list }}"
+  loop_control:
+    label: "port {{ item.port }} ({{ item.name }})"
+  when: poe_action == 'disable'
+  register: poe_batch_control
+  changed_when: poe_batch_control.rc == 0
+  failed_when: poe_batch_control.rc != 0
+
+- name: Toggle PoE on designated ports
+  ansible.builtin.command:
+    argv:
+      - "{{ ntgrrc_bin }}"
+      - "poe"
+      - "cycle"
+      - "--address"
+      - "{{ gs305ep_config.address }}"
+      - "--port"
+      - "{{ item.port | string }}"
+      - "--token-dir"
+      - "{{ ntgrrc_tmpdir.path }}"
+  loop: "{{ gs305ep_ports | selectattr('power', 'equalto', 'enable') | list }}"
+  loop_control:
+    label: "port {{ item.port }} ({{ item.name }})"
+  when: poe_action == 'toggle'
+  register: poe_batch_control
+  changed_when: poe_batch_control.rc == 0
+  failed_when: poe_batch_control.rc != 0

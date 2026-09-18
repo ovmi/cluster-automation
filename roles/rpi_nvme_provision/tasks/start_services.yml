@@ -1,0 +1,36 @@
+---
+- name: Start NFS server (restore previous state)
+  ansible.builtin.systemd:
+    name: nfs-kernel-server
+    state: started
+  when: nfs_active | default(false)
+
+- name: Re-export NFS shares
+  ansible.builtin.command: exportfs -rav
+  changed_when: false
+  when: nfs_active | default(false)
+
+- name: Ensure TFTP mount directories exist
+  ansible.builtin.file:
+    path: "{{ tftp_dir | default('/srv/tftp') }}/{{ hostname_map[item] }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ nodes_list }}"
+  become: true
+
+- name: Mount boot partitions back under the TFTP dir (RO)
+  ansible.posix.mount:
+    path: "{{ tftp_dir | default('/srv/tftp') }}/{{ hostname_map[item] }}"
+    src: "{{ nvme_device }}p{{ nvme_map[item][slot_param].boot }}"
+    fstype: vfat
+    opts: "ro,fmask=0022,dmask=0022"
+    state: mounted
+  loop: "{{ nodes_list }}"
+  become: true
+
+- name: Restart dnsmasq if it was active earlier
+  ansible.builtin.systemd:
+    name: dnsmasq
+    state: started
+  when: dnsmasq_active | default(false)
+  become: true

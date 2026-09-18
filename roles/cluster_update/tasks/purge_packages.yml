@@ -1,0 +1,51 @@
+---
+- name: Force initramfs MODULES=most (RPi OS / Debian)
+  ansible.builtin.lineinfile:
+    path: /etc/initramfs-tools/initramfs.conf
+    regexp: '^MODULES='
+    line: 'MODULES=most'
+    create: false
+  when: ansible_facts.os_family == "Debian"
+
+- name: Remove initramfs driver-policy override (causes MODULES=dep)
+  ansible.builtin.file:
+    path: /etc/initramfs-tools/conf.d/driver-policy
+    state: absent
+  when: ansible_facts.os_family == "Debian"
+
+- name: Detect if root is NFS
+  ansible.builtin.command: findmnt -no FSTYPE /
+  register: root_fstype
+  changed_when: false
+
+- name: Stop/disable/mask snapd units (pre-purge)
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  loop:
+    - snapd.service
+    - snapd.socket
+    - snapd.seeded.service
+  failed_when: false
+  when:
+    - ansible_facts.distribution == "Ubuntu"
+    - root_fstype.stdout.strip() == "nfs"
+
+- name: Purge snapd on NFS-root systems (avoid dpkg failures)
+  ansible.builtin.apt:
+    name: snapd
+    state: absent
+    purge: true
+  when:
+    - ansible_facts.distribution == "Ubuntu"
+    - root_fstype.stdout.strip() == "nfs"
+
+- name: Hold snapd to prevent reinstall
+  ansible.builtin.dpkg_selections:
+    name: snapd
+    selection: hold
+  when:
+    - ansible_facts.distribution == "Ubuntu"
+    - root_fstype.stdout.strip() == "nfs"

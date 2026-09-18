@@ -1,0 +1,6 @@
+---
+- name: Purge unnecessary packages
+  ansible.builtin.import_tasks: purge_packages.yml
+
+- name: Install essential packages
+  ansible.builtin.import_tasks: install_packages.yml

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ gluster_pvc_name }}
+  namespace: {{ gluster_namespace }}
+spec:
+  accessModes:
+    - {{ gluster_access_mode }}
+  resources:
+    requests:
+      storage: {{ gluster_static_pv_size }}
+  volumeName: {{ gluster_pv_name }}
+  storageClassName: {{ gluster_storage_class_name }}

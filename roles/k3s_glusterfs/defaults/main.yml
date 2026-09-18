@@ -1,0 +1,13 @@
+---
+gluster_namespace: default
+gluster_pv_name: gluster-pv
+gluster_pvc_name: gluster-pvc
+gluster_storage_class_name: gluster-static
+gluster_static_pv_size: 1Gi
+gluster_access_mode: ReadWriteMany
+gluster_hostpath: /mnt/glusterfs-volume
+gluster_node_name: "{{ hostname_map[k3s_control] }}"
+gluster_deployment_name: gluster-deploy
+gluster_pod_test_name: gluster-test
+
+kubeconfig_path: "{{ k3s_kubeconfig }}"

@@ -1,0 +1,13 @@
+- name: Copy CPU temperature update script
+  ansible.builtin.template:
+    src: temperature_exporter.sh.j2
+    dest: /usr/local/bin/temperature.sh
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Add cron job to update temperature
+  ansible.builtin.cron:
+    name: "Temperature Exporter"
+    job: "/usr/local/bin/temperature.sh"
+    minute: "*/1"

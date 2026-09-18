@@ -1,0 +1,72 @@
+---
+- name: Detect if root is NFS
+  ansible.builtin.command: findmnt -no FSTYPE /
+  register: root_fstype
+  changed_when: false
+
+- name: Update package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Upgrade packages (not on NFS-root)
+  ansible.builtin.apt:
+    upgrade: dist
+  when: root_fstype.stdout.strip() != "nfs"
+
+- name: Install required dependencies
+  ansible.builtin.apt:
+    pkg:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - software-properties-common
+      - lsb-release
+    state: present
+
+- name: Set Docker repo variables
+  ansible.builtin.set_fact:
+    docker_repo_base: >-
+      {% if ansible_distribution == 'Ubuntu' %}
+        https://download.docker.com/linux/ubuntu
+      {% else %}
+        https://download.docker.com/linux/debian
+      {% endif %}
+    docker_repo_release: >-
+      {% if ansible_distribution == 'Ubuntu' and ansible_distribution_release == 'oracular' %}
+        jammy
+      {% else %}
+        {{ ansible_distribution_release }}
+      {% endif %}
+
+- name: Create keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download Docker GPG key
+  ansible.builtin.get_url:
+    url: "{{ docker_repo_base | trim }}/gpg"
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+
+# - name: Download Docker GPG key
+#   ansible.builtin.get_url:
+#     url: "{{ docker_repo_base | trim }}/gpg"
+#     dest: /etc/apt/keyrings/docker.asc
+#     mode: '0644'
+
+- name: Ensure trusted.gpg.d directory exists
+  ansible.builtin.file:
+    path: /etc/apt/trusted.gpg.d
+    state: directory
+    mode: '0755'
+
+- name: Copy Docker GPG key to trusted.gpg.d
+  ansible.builtin.copy:
+    src: /etc/apt/keyrings/docker.asc
+    dest: /etc/apt/trusted.gpg.d/docker.asc
+    mode: '0644'
+    remote_src: true

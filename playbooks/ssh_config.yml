@@ -1,0 +1,42 @@
+---
+- name: Setup SSH configuration on localhost
+  hosts: localhost
+  become: false
+  gather_facts: false
+
+  vars:
+    target_group: ssh_config_targets
+
+  pre_tasks:
+    - name: Validate ssh_mode
+      ansible.builtin.assert:
+        that:
+          - ssh_mode in ['bootstrap', 'config']
+        fail_msg: "Invalid ssh_mode={{ ssh_mode }}"
+
+    - name: Check Ansible version and collections
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: ansible_check.yml
+
+  tasks:
+    - name: Resolve nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+
+    - name: Add resolved nodes to ssh_config targets group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: "{{ target_group }}"
+      loop: "{{ resolved_hosts }}"
+
+    - name: Configure SSH on cluster nodes
+      ansible.builtin.include_role:
+        name: ssh_config
+      vars:
+        ssh_targets_group: "{{ target_group }}"
+
+# Ensure SSH keys and configurations are properly set up on localhost and cluster nodes.
+# Example command line to run this playbook:
+# ansible-playbook playbooks/ssh_config.yml -e nodes=node0,node1 -e ssh_mode=config [-e debug=true]

@@ -1,0 +1,16 @@
+---
+- name: Remove stale SSH host key (hostname)
+  ansible.builtin.known_hosts:
+    path: "~/.ssh/known_hosts"
+    name: "{{ item }}"
+    state: absent
+  delegate_to: localhost
+  loop: "{{ ssh_targets | default([]) }}"
+
+- name: Remove stale SSH host key (IP)
+  ansible.builtin.known_hosts:
+    path: "~/.ssh/known_hosts"
+    name: "{{ hostvars[item].ansible_host }}"
+    state: absent
+  delegate_to: localhost
+  loop: "{{ ssh_targets | default([]) }}"

@@ -1,0 +1,56 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": null,
+    "title": "CPU Temperature test",
+    "tags": ["cluster", "temperature"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "type": "timeseries",
+        "title": "CPU Temperature (°C)",
+        "targets": [
+          {
+            "expr": "node_cpu_temperature_celsius",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "celsius",
+            "color": {
+              "mode": "palette-classic"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 60
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        }
+      }
+    ],
+    "schemaVersion": 38,
+    "version": 1
+  },
+  "overwrite": true
+}

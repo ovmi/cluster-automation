@@ -1,0 +1,43 @@
+---
+# K3s requires the memory cgroup to be enabled. On Raspberry Pi OS and Ubuntu
+# for Pi, it is disabled by default and must be enabled through the Pi
+# bootloader's cmdline.txt configuration.
+- name: Read /proc/cmdline
+  ansible.builtin.command: cat /proc/cmdline
+  register: proc_cmdline
+  changed_when: false
+
+- name: Detect boot mode
+  ansible.builtin.set_fact:
+    is_netboot: "{{ (' root=/dev/nfs' in proc_cmdline.stdout) or (' nfsroot=' in proc_cmdline.stdout) }}"
+
+- name: Set cmdline source path and delegate host
+  ansible.builtin.set_fact:
+    cmdline_src: >-
+      {{ (is_netboot | bool)
+          | ternary('/srv/tftp/' ~ inventory_hostname ~ '/cmdline.txt',
+                    '/boot/firmware/cmdline.txt') }}
+    cmdline_delegate: >-
+      {{ (is_netboot | bool)
+          | ternary(groups['control'][0], inventory_hostname) }}
+
+- name: Read TFTP cmdline if netbooting
+  ansible.builtin.slurp:
+    src: "{{ cmdline_src }}"
+  delegate_to: "{{ cmdline_delegate }}"
+  register: cmdline_raw
+
+- name: Decode cmdline content
+  ansible.builtin.set_fact:
+    cmdline_line: "{{ cmdline_raw.content | b64decode | replace('\n', ' ') | trim }}"
+
+- name: Add cgroup options only if missing
+  ansible.builtin.copy:
+    dest: "{{ cmdline_src }}"
+    content: >-
+      {{ (cmdline_line.split() + ['cgroup_memory=1', 'cgroup_enable=memory']) | unique | join(' ') }}
+    mode: '0644'
+  when: "'cgroup_memory=1' not in cmdline_line or 'cgroup_enable=memory' not in cmdline_line"
+  delegate_to: "{{ cmdline_delegate }}"
+  register: cmdline_updated
+  changed_when: cmdline_updated.changed

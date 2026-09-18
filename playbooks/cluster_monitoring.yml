@@ -1,0 +1,44 @@
+---
+- name: Resolve cluster nodes for monitoring
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    target_group: mon_targets
+
+  pre_tasks:
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+
+    - name: Add resolved nodes to monitoring group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: "{{ target_group }}"
+      loop: "{{ resolved_hosts }}"
+
+    - name: Derive monitoring hosts from logical node ids
+      ansible.builtin.set_fact:
+        mon_control_node: "{{ node_host_map[mon_control] }}"
+        mon_worker_nodes: "{{ mon_workers | map('extract', node_host_map) | list }}"
+      run_once: true
+
+- name: System health and performance monitoring
+  hosts: mon_targets
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Import derived facts from localhost
+      ansible.builtin.set_fact:
+        iperf_server_host: "{{ hostvars['localhost'].mon_control_node }}"
+        iperf_server_client: "{{ hostvars['localhost'].mon_worker_nodes }}"
+
+  roles:
+    - cluster_monitoring
+
+  # Run per-node health checks: resource snapshot, service status, network bandwidth.
+  # Example:
+  # ansible-playbook playbooks/cluster_monitoring.yml -e nodes=node0,node1,node2,node3 [-e debug=true]

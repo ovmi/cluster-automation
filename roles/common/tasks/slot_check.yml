@@ -1,0 +1,15 @@
+---
+- name: Normalize slot
+  ansible.builtin.set_fact:
+    slot_param: "{{ (slot | default('a') | string) | lower }}"
+
+- name: Validate slot
+  ansible.builtin.assert:
+    that:
+      - slot_param in ['a','b']
+    fail_msg: "Invalid slot={{ slot_param }}. Valid values: 'a' or 'b'."
+
+- name: Show selected slot
+  ansible.builtin.debug:
+    msg: "Selected slot: {{ slot_param }}"
+  when: debug | default(false)

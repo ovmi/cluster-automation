@@ -1,0 +1,3 @@
+---
+- name: Cluster nodes shutdown
+  ansible.builtin.include_tasks: nodes_shutdown.yml

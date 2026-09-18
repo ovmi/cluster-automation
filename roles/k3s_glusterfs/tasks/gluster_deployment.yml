@@ -1,0 +1,5 @@
+- name: Deploy production pod using GlusterFS volume
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig_path }}"
+    definition: "{{ lookup('template', 'gluster-deployment.yaml.j2') }}"

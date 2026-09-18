@@ -1,0 +1,9 @@
+nvme_format: false                          # Whether to format the NVMe device before provisioning
+nvme_nodes: []                              # [] means “all nodes in nvme_map”
+nvme_slot: "a"                              # valid values: "a", "b"
+
+image_cache_dir: "/mnt/downloads/os_images" # Download directory where all images are cached on node0
+
+nfs_active: false                           # Whether NFS server is active
+dnsmasq_active: false                       # Whether dnsmasq service is active
+tftpd_hpa_active: false                     # Whether tftpd-hpa service is active

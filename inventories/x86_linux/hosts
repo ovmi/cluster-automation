@@ -1,0 +1,14 @@
+[local]
+localhost ansible_connection=local ansible_host=192.168.100.148
+
+[control]
+vm-node0 ansible_connection=ssh ansible_host=CHANGE_ME ansible_user=CHANGE_ME ansible_password="{{ vault_vm_node0_password }}" ansible_become_password="{{ vault_vm_node0_password }}"
+
+[workers]
+vm-node1 ansible_connection=ssh ansible_host=CHANGE_ME ansible_user=CHANGE_ME ansible_password="{{ vault_vm_node1_password }}" ansible_become_password="{{ vault_vm_node1_password }}"
+vm-node2 ansible_connection=ssh ansible_host=CHANGE_ME ansible_user=CHANGE_ME ansible_password="{{ vault_vm_node2_password }}" ansible_become_password="{{ vault_vm_node2_password }}"
+vm-node3 ansible_connection=ssh ansible_host=CHANGE_ME ansible_user=CHANGE_ME ansible_password="{{ vault_vm_node3_password }}" ansible_become_password="{{ vault_vm_node3_password }}"
+
+[cluster:children]
+control
+workers

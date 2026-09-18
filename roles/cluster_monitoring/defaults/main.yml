@@ -1,0 +1,11 @@
+monitor_services:
+  - k3s
+  - k3s-agent
+  - glusterd
+  - docker
+  - route-monitor
+  - cluster-gw-monitor
+
+# Resource usage thresholds — percent used at or above which a resource is shown red
+mem_usage_threshold: 90
+disk_usage_threshold: 85

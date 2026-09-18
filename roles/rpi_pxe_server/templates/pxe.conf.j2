@@ -1,0 +1,25 @@
+port=0   # disable DNS forwarding
+#interface={{ pxe_interface | default('eth0') }}
+#bind-interfaces
+bind-dynamic
+log-dhcp
+
+# Proxy-DHCP setup
+dhcp-range={{ pxe_proxy_network }},proxy,{{ subnet_mask }}
+
+# PXE service string (seen by RPi bootloader)
+pxe-service=0,"Raspberry Pi Boot"
+
+# Built-in TFTP
+enable-tftp
+tftp-root={{ tftp_dir | default('/srv/tftp') }}
+
+{% for host in groups['workers'] %}
+# Mapping for {{ host }}
+dhcp-host={{ hostvars[host].mac }},set:{{ host }}
+dhcp-boot=tag:{{ host }},{{ host }}/start4.elf
+dhcp-option=tag:{{ host }},option:tftp-server,{{ tftp_server }}
+{% endfor %}
+
+# TFTP server IP (defaults to this host)
+dhcp-option=option:tftp-server,{{ tftp_server }}

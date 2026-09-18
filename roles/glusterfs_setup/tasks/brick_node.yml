@@ -1,0 +1,40 @@
+- name: Ensure GlusterFS brick directory exists
+  ansible.builtin.file:
+    path: "{{ gluster_brick_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Detect filesystem type of brick device
+  ansible.builtin.command: >-
+    lsblk -no FSTYPE {{ gluster_brick_device }}
+  register: brick_fstype
+  changed_when: false
+
+- name: Fail if brick device is already formatted (unless allow_format=true)
+  ansible.builtin.fail:
+    msg: "{{ gluster_brick_device }} already has a filesystem: {{ brick_fstype.stdout }} — refusing to format!"
+  when:
+    - brick_fstype.stdout != ""
+    - not (allow_format | default(false))
+
+- name: Create ext4 filesystem on brick device if not present
+  community.general.filesystem:
+    fstype: ext4
+    dev: "{{ gluster_brick_device }}"
+  when: brick_fstype.stdout == ""
+
+- name: Get disk UUID
+  ansible.builtin.command: >-
+    blkid -s UUID -o value {{ gluster_brick_device }}
+  register: brick_fstype
+  changed_when: false
+
+- name: Mount GlusterFS brick via UUID
+  ansible.posix.mount:
+    path: "{{ gluster_brick_path }}"
+    src: "UUID={{ brick_fstype.stdout }}"
+    fstype: ext4
+    opts: defaults,noatime
+    state: mounted

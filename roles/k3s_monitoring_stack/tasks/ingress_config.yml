@@ -1,0 +1,25 @@
+---
+- name: Copy Grafana ingress manifest
+  ansible.builtin.template:
+    src: "grafana_ingress.yaml.j2"
+    dest: "{{ kube_manifests_dir }}/grafana_ingress.yaml"
+    owner: "{{ k3s_admin_user }}"
+    group: "{{ k3s_admin_user }}"
+    mode: '0644'
+
+- name: Copy Prometheus ingress manifest
+  ansible.builtin.template:
+    src: "prometheus_ingress.yaml.j2"
+    dest: "{{ kube_manifests_dir }}/prometheus_ingress.yaml"
+    owner: "{{ k3s_admin_user }}"
+    group: "{{ k3s_admin_user }}"
+    mode: '0644'
+
+- name: Apply ingress resources
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ kube_manifests_dir }}/{{ item | basename }}"
+    kubeconfig: "{{ k3s_kubeconfig }}"
+  loop:
+    - grafana_ingress.yaml
+    - prometheus_ingress.yaml

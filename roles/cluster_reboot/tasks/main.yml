@@ -1,0 +1,3 @@
+---
+- name: Reboot cluster nodes
+  ansible.builtin.include_tasks: nodes_reboot.yml

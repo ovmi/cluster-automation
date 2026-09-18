@@ -1,0 +1,17 @@
+---
+- name: Configure the connection to the ethernet switch
+  ansible.builtin.include_tasks: switch_config.yml
+
+- name: Print out port settings
+  ansible.builtin.include_tasks: show_config.yml
+  when: debug | default(false)
+
+- name: Configure port settings
+  ansible.builtin.include_tasks: port_config.yml
+  when: config is defined and config | bool
+
+- name: Control POE port power settings
+  ansible.builtin.include_tasks: poe_config.yml
+  when:
+    - poe_action is defined
+    - poe_action in ['enable', 'disable', 'toggle']

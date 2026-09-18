@@ -1,0 +1,20 @@
+[Unit]
+Description=LAN/LTE Route Monitor
+Documentation=https://github.com/ovmi/rpi-cluster-automation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Restore routing tables and ip rules before the monitor loop starts.
+# The '-' prefix means service startup continues even if the script exits non-zero.
+ExecStartPre=-/usr/local/bin/restore-routes.sh
+ExecStart=/usr/local/bin/route-monitor.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=route-monitor
+
+[Install]
+WantedBy=multi-user.target

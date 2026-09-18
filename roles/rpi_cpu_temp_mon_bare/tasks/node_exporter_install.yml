@@ -1,0 +1,72 @@
+---
+- name: Create node_exporter group
+  ansible.builtin.group:
+    name: "{{ node_exporter_group }}"
+    system: true
+
+- name: Create node_exporter user
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Download node_exporter archive (once)
+  ansible.builtin.get_url:
+    url: https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-arm64.tar.gz
+    dest: /tmp/node_exporter.tar.gz
+    mode: '0644'
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Copy archive to each node
+  ansible.builtin.copy:
+    src: /tmp/node_exporter.tar.gz
+    dest: /tmp/node_exporter.tar.gz
+    mode: '0644'
+
+- name: Extract Node Exporter
+  ansible.builtin.unarchive:
+    src: /tmp/node_exporter.tar.gz
+    dest: /tmp/
+    remote_src: true
+
+- name: Install Node Exporter binary
+  ansible.builtin.copy:
+    src: /tmp/node_exporter-{{ node_exporter_version }}.linux-arm64/node_exporter
+    dest: /usr/local/bin/node_exporter
+    mode: '0755'
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    remote_src: true
+
+- name: Ensure textfile_collector directory exists
+  ansible.builtin.file:
+    path: "{{ node_exporter_collector }}"
+    state: directory
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: '0755'
+
+- name: Install systemd service for Node Exporter
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: "{{ node_exporter_service_file }}"
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: "{{ node_exporter_service_mode }}"
+  notify: Reload systemd daemon
+
+- name: Enable and start Node Exporter
+  ansible.builtin.systemd:
+    name: "{{ node_exporter_service_name }}"
+    enabled: true
+    state: started
+
+- name: Verify Node Exporter is running
+  ansible.builtin.systemd:
+    name: "{{ node_exporter_service_name }}"
+    state: started
+    enabled: true

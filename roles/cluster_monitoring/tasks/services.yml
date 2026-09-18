@@ -1,0 +1,15 @@
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Build service health map
+  ansible.builtin.set_fact:
+    service_health: >-
+      {{ service_health | default({}) | combine({
+           item: ansible_facts.services[item + '.service'].state | default('absent')
+         }) }}
+  loop: "{{ monitor_services }}"
+
+- name: Display service health
+  ansible.builtin.debug:
+    var: service_health

@@ -1,0 +1,20 @@
+lan_iface: eth0                   # Wired LAN interface
+
+lte_mode: ecm                     # ecm | qmi
+
+lte_apn: internet                 # APN for LTE connection - Digi APN is "internet"
+lte_ecm_iface: usb0
+lte_qmi_iface: wwan0
+lte_qmi_device: /dev/cdc-wdm0
+lte_test_ip: 1.1.1.1
+lte_modem_usb_id: "2c7c:0125"
+
+debug: false                      # Enable debug output
+
+route_check_interval: 10          # Seconds between LAN/LTE reachability checks
+
+# Failover tuning — shared by route-monitor (node3) and cluster-gw-monitor (other nodes)
+fail_threshold: 3                 # Consecutive check failures before switching gateway
+recover_threshold: 3              # Consecutive check successes before reverting gateway
+
+dns_fallback_servers: "8.8.8.8 1.1.1.1"   # Public DNS used by systemd-resolved when LAN router is unreachable

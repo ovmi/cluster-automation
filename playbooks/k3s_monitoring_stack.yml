@@ -1,0 +1,33 @@
+---
+- name: Resolve K3S installation targets
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    target_group: k3s_targets
+
+  pre_tasks:
+    - name: Derive K3S hosts from logical node ids
+      ansible.builtin.set_fact:
+        k3s_control_node: "{{ hostname_map[k3s_control] }}"
+        k3s_worker_nodes: "{{ k3s_workers | map('extract', hostname_map) | list }}"
+      run_once: true
+
+- name: Cluster monitoring installation
+  hosts: control
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Import derived K3S facts from localhost
+      ansible.builtin.set_fact:
+        k3s_control_node: "{{ hostvars['localhost'].k3s_control_node }}"
+        k3s_worker_nodes: "{{ hostvars['localhost'].k3s_worker_nodes }}"
+
+  roles:
+    - k3s_monitoring_stack
+
+  # Install monitoring stack components such as Prometheus, Grafana, and ingress.
+  # Example command line to run this playbook:
+  # ansible-playbook playbooks/k3s_monitoring_stack.yml [-e debug=true]

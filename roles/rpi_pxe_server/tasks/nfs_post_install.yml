@@ -1,0 +1,11 @@
+---
+- name: Reload NFS exports
+  ansible.builtin.command: exportfs -rav
+  register: exportfs_reload
+  changed_when: "'exporting' in (exportfs_reload.stdout | default(''))"
+
+- name: Enable & start NFS server
+  ansible.builtin.systemd:
+    name: nfs-kernel-server
+    enabled: true
+    state: restarted

@@ -1,0 +1,28 @@
+---
+- name: Reboot node if EEPROM update requires it
+  ansible.builtin.command: shutdown -r now
+  become: true
+  async: 1
+  poll: 0
+  changed_when: false
+  when: reboot_required | default(false)
+
+- name: Wait for SSH port to go down (confirm reboot actually started)
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: 22
+    state: stopped
+    delay: 2
+    timeout: "{{ bootmode_reboot_down_timeout }}"
+  delegate_to: localhost
+  when: reboot_required | default(false)
+
+- name: Wait for SSH port to become reachable
+  ansible.builtin.wait_for:
+    host: "{{ hostvars[item].ansible_host }}"
+    port: 22
+    delay: 5
+    timeout: "{{ bootmode_reboot_up_timeout }}"
+  delegate_to: localhost
+  loop: "{{ groups['rpi_boot_targets'] | default([]) }}"
+  when: reboot_required | default(false)

@@ -1,0 +1,23 @@
+---
+- name: Build ssh target list
+  ansible.builtin.set_fact:
+    ssh_targets: >-
+      {{
+        (groups[ssh_targets_group]
+        if (ssh_targets_group is defined)
+        else resolved_hosts | default([]))
+      }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Cleanup known_hosts
+  ansible.builtin.import_tasks: cleanup.yml
+  when: ssh_cleanup | bool
+
+- name: Bootstrap SSH (password-based)
+  ansible.builtin.import_tasks: bootstrap.yml
+  when: ssh_mode == 'bootstrap'
+
+- name: Configure steady-state SSH
+  ansible.builtin.import_tasks: config.yml
+  when: ssh_mode == 'config'

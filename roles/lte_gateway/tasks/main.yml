@@ -1,0 +1,86 @@
+---
+- name: Include common LTE checks
+  ansible.builtin.import_tasks: common.yml
+  when: inventory_hostname == lte_bridge_host
+
+- name: Include ECM tasks
+  ansible.builtin.import_tasks: lte_ecm.yml
+  when:
+    - lte_mode == 'ecm'
+    - inventory_hostname == lte_bridge_host
+    - lte_modem_present
+
+- name: Include QMI tasks
+  ansible.builtin.import_tasks: lte_qmi.yml
+  when:
+    - lte_mode == 'qmi'
+    - inventory_hostname == lte_bridge_host
+    - lte_modem_present
+
+- name: Include routing, NAT and persistence tasks
+  ansible.builtin.import_tasks: routing_setup.yml
+  when:
+    - inventory_hostname == lte_bridge_host
+    - lte_modem_present
+
+- name: Deploy route monitor script
+  ansible.builtin.template:
+    src: switch_routes.sh.j2
+    dest: /usr/local/bin/route-monitor.sh
+    mode: "0755"
+    owner: root
+    group: root
+  when:
+    - inventory_hostname == lte_bridge_host
+    - lte_modem_present
+  notify: Restart route-monitor
+
+- name: Deploy route-monitor systemd unit
+  ansible.builtin.template:
+    src: route-monitor.service.j2
+    dest: /etc/systemd/system/route-monitor.service
+    mode: "0644"
+    owner: root
+    group: root
+  when:
+    - inventory_hostname == lte_bridge_host
+    - lte_modem_present
+  notify: Restart route-monitor
+
+- name: Enable and start route-monitor service
+  ansible.builtin.systemd:
+    name: route-monitor
+    enabled: true
+    state: started
+    daemon_reload: true
+  when:
+    - inventory_hostname == lte_bridge_host
+    - lte_modem_present
+
+- name: Deploy cluster gateway monitor on non-LTE nodes
+  ansible.builtin.import_tasks: cluster_gw_monitor.yml
+  when:
+    - inventory_hostname != lte_bridge_host
+    - hostvars[lte_bridge_host].lte_modem_present | default(false)
+
+- name: Gather service facts to check for systemd-resolved
+  ansible.builtin.service_facts:
+
+- name: Ensure resolved.conf.d directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  when: "'systemd-resolved.service' in ansible_facts.services"
+
+- name: Deploy fallback DNS config for systemd-resolved
+  ansible.builtin.template:
+    src: resolved-fallback.conf.j2
+    dest: /etc/systemd/resolved.conf.d/fallback.conf
+    mode: "0644"
+    owner: root
+    group: root
+  when: "'systemd-resolved.service' in ansible_facts.services"
+  notify: Restart systemd-resolved

@@ -1,0 +1,63 @@
+---
+- name: Ensure ~/.ssh exists on targets
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.ssh"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0700"
+  delegate_to: "{{ item }}"
+  loop: "{{ ssh_targets | default([]) }}"
+
+- name: Check if private key exists
+  ansible.builtin.stat:
+    path: "{{ ssh_private_key_path | expanduser }}"
+  register: ssh_key_stat
+  run_once: true
+  delegate_to: localhost
+
+- name: Generate SSH key pair if not present
+  community.crypto.openssh_keypair:
+    path: "{{ ssh_private_key_path | expanduser }}"
+    type: "{{ ssh_key_type | default('ed25519') }}"
+    # size: "{{ ssh_key_bits }}" # only used if type is rsa
+    comment: "{{ ssh_key_comment | default('raspi-cluster') }}"
+    owner: "{{ ssh_user }}"
+    group: "{{ ssh_group }}"
+    mode: '0600'
+  when: not ssh_key_stat.stat.exists
+  run_once: true
+  delegate_to: localhost
+
+- name: Ensure ssh drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d
+    state: directory
+    mode: "0755"
+  become: true
+  delegate_to: "{{ item }}"
+  loop: "{{ ssh_targets | default([]) }}"
+
+- name: Remove stale pre-rename hardening drop-in
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d/99-cluster.conf
+    state: absent
+  become: true
+  delegate_to: "{{ item }}"
+  loop: "{{ ssh_targets | default([]) }}"
+  notify: Restart SSH service
+
+# Filename must sort before cloud-init's own drop-in -- see the README's
+# "Drop-in filename ordering" section before renumbering this.
+- name: Configure SSH hardening
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/10-cluster.conf
+    mode: "0644"
+    content: |
+      PasswordAuthentication yes
+      PubkeyAuthentication yes
+      PermitRootLogin yes
+  become: true
+  delegate_to: "{{ item }}"
+  loop: "{{ ssh_targets | default([]) }}"
+  notify: Restart SSH service

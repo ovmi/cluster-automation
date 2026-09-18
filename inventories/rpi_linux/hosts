@@ -1,0 +1,21 @@
+[local]
+localhost ansible_connection=local ansible_host=192.168.100.148
+
+[control]
+rpi-node0 ansible_connection=ssh ansible_host=192.168.100.10 mac=2c:cf:67:68:c2:b1 ansible_user=node0 switch_port=1
+
+[workers]
+rpi-node1 ansible_connection=ssh ansible_host=192.168.100.11 mac=2c:cf:67:13:92:a9 ansible_user=node1 switch_port=2
+rpi-node2 ansible_connection=ssh ansible_host=192.168.100.12 mac=d8:3a:dd:46:f8:30 ansible_user=node2 switch_port=3
+rpi-node3 ansible_connection=ssh ansible_host=192.168.100.13 mac=d8:3a:dd:4f:67:a9 ansible_user=node3 switch_port=4
+
+[cluster:children]
+control
+workers
+
+[all:vars]
+switch_ip=192.168.100.100
+proxy_ip=192.168.100.0
+lan_gateway_ip=192.168.100.1
+lte_gateway_ip=192.168.225.1
+subnet_mask=255.255.255.0

@@ -1,0 +1,89 @@
+---
+- name: Create prometheus group
+  ansible.builtin.group:
+    name: "{{ prometheus_service_group }}"
+    system: true
+
+- name: Create prometheus user
+  ansible.builtin.user:
+    name: "{{ prometheus_service_user }}"
+    group: "{{ prometheus_service_group }}"
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Download Prometheus
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-arm64.tar.gz"
+    dest: /tmp/prometheus.tar.gz
+    mode: '0644'
+
+- name: Extract Prometheus
+  ansible.builtin.unarchive:
+    src: /tmp/prometheus.tar.gz
+    dest: /opt/
+    remote_src: true
+
+- name: Copy Prometheus binary
+  ansible.builtin.copy:
+    remote_src: true
+    src: "/opt/prometheus-{{ prometheus_version }}.linux-arm64/prometheus"
+    dest: /usr/local/bin/prometheus
+    mode: '0755'
+
+- name: Ensure Prometheus config directory exists
+  ansible.builtin.file:
+    path: "{{ prometheus_config_dir }}"
+    state: directory
+    owner: "{{ prometheus_service_user }}"
+    group: "{{ prometheus_service_group }}"
+    mode: '0755'
+
+- name: Ensure Prometheus data directory exists
+  ansible.builtin.file:
+    path: "{{ prometheus_data_dir }}"
+    state: directory
+    owner: "{{ prometheus_service_user }}"
+    group: "{{ prometheus_service_group }}"
+    mode: '0755'
+
+- name: Install systemd service for Prometheus
+  ansible.builtin.template:
+    src: "{{ prometheus_service_template }}"
+    dest: "{{ prometheus_service_file }}"
+    owner: "{{ prometheus_service_user }}"
+    group: "{{ prometheus_service_group }}"
+    mode: "{{ prometheus_service_mode }}"
+  notify: Reload systemd daemon
+
+- name: Enable and start Prometheus
+  ansible.builtin.systemd:
+    name: prometheus
+    enabled: true
+    state: started
+
+- name: Ensure Prometheus config directory exists
+  ansible.builtin.file:
+    path: "{{ prometheus_config_dir }}"
+    state: directory
+    mode: '0755'
+  become: true
+
+- name: Template prometheus.yml config
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: "{{ prometheus_service_web_config_dir_user }}"
+    group: "{{ prometheus_service_web_config_dir_group }}"
+    mode: '0644'
+  notify: Restart Prometheus
+  become: true
+
+- name: Add Prometheus hostnames to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars[k3s_control_node].ansible_host }} {{ prometheus_hostname }}"
+    state: present
+  become: true
+  delegate_to: localhost
+  run_once: true

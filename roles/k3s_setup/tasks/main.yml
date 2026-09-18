@@ -1,0 +1,42 @@
+---
+- name: Cgroups setup for K3S
+  ansible.builtin.include_tasks: pre_install.yml
+  when: k3s_mode == 'install'
+
+- name: Reboot control node if cmdline was updated
+  ansible.builtin.reboot:
+    msg: "Rebooting {{ inventory_hostname }} for cgroup cmdline change"
+    pre_reboot_delay: 3
+    reboot_timeout: 600
+    post_reboot_delay: 5
+    test_command: whoami
+  when:
+    - cmdline_updated.changed | default(false)
+    - inventory_hostname == k3s_control_node
+
+- name: Reboot worker nodes if cmdline was updated
+  ansible.builtin.reboot:
+    msg: "Rebooting {{ inventory_hostname }} for cgroup cmdline change"
+    pre_reboot_delay: 3
+    reboot_timeout: 600
+    post_reboot_delay: 5
+    test_command: whoami
+  when:
+    - cmdline_updated.changed | default(false)
+    - inventory_hostname != k3s_control_node
+
+- name: Install K3S on control node
+  ansible.builtin.include_tasks: control_install.yml
+  when:
+    - k3s_mode == 'install'
+    - inventory_hostname == k3s_control_node
+
+- name: Join worker nodes to cluster
+  ansible.builtin.include_tasks: workers_install.yml
+  when:
+    - k3s_mode == 'install'
+    - inventory_hostname != k3s_control_node
+
+- name: Uninstall K3S from nodes
+  ansible.builtin.include_tasks: k3s_remove.yml
+  when: k3s_mode == 'remove'

@@ -1,0 +1,52 @@
+---
+- name: Check for bundled K3s Traefik
+  ansible.builtin.command: >-
+    kubectl -n kube-system get deployment traefik -o name
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  register: traefik_check
+  changed_when: false
+  failed_when: false
+
+- name: Determine whether Traefik installation is needed
+  ansible.builtin.set_fact:
+    traefik_needs_install: "{{ traefik_check.stdout | trim == '' }}"
+
+- name: Ensure Traefik namespace exists
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ traefik_namespace }}"
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  when: traefik_needs_install
+
+- name: Add Traefik Helm repository
+  kubernetes.core.helm_repository:
+    name: traefik
+    repo_url: https://traefik.github.io/charts
+  when: traefik_needs_install
+
+- name: Update Helm repositories
+  ansible.builtin.command: helm repo update
+  changed_when: false
+  when: traefik_needs_install
+
+- name: Install Traefik via Helm
+  kubernetes.core.helm:
+    name: "{{ helm_release_traefik }}"
+    chart_ref: traefik/traefik
+    release_namespace: "{{ traefik_namespace }}"
+    create_namespace: true
+    wait: true
+    values:
+      ingressClass:
+        enabled: true
+        isDefaultClass: true
+        name: traefik
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  when: traefik_needs_install

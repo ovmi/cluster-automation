@@ -1,0 +1,44 @@
+---
+- name: Normalize boot_mode parameter
+  ansible.builtin.set_fact:
+    boot_mode_param: "{{ boot_mode | default(boot_mode_param) | lower }}"
+
+- name: Validate boot_mode_param value
+  ansible.builtin.assert:
+    that:
+      - boot_mode_param in boot_sequences
+    fail_msg: >
+      Invalid boot_mode '{{ boot_mode_param }}'.
+      Valid options are: {{ boot_sequences.keys() | list | join(', ') }}.
+
+- name: Show selected boot mode
+  ansible.builtin.debug:
+    msg: "Selected boot mode: {{ boot_mode_param }}"
+  when: debug | default(false)
+
+- name: Resolve boot sequence from mode
+  ansible.builtin.set_fact:
+    boot_seq: "{{ boot_sequences[boot_mode_param] }}"
+
+- name: Validate boot sequence devices
+  ansible.builtin.assert:
+    that:
+      - item in boot_devices
+    fail_msg: >
+      Invalid boot device '{{ item }}' in boot sequence '{{ boot_mode_param }}'.
+      Valid devices: {{ boot_devices.keys() | list }}
+  loop: "{{ boot_seq }}"
+
+- name: Show selected boot sequence
+  ansible.builtin.debug:
+    msg: "Selected boot sequence: {{ boot_seq }}"
+  when: debug | default(false)
+
+- name: Build BOOT_ORDER from sequence
+  ansible.builtin.set_fact:
+    boot_order: "0x{{ boot_seq | map('extract', boot_devices) | join('') }}"
+
+- name: Show BOOT_ORDER setting
+  ansible.builtin.debug:
+    msg: "Setting BOOT_ORDER to {{ boot_order }}"
+  when: debug | default(false)

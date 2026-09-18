@@ -1,0 +1,58 @@
+---
+- name: Peer probe all brick nodes
+  ansible.builtin.command: >-
+    gluster peer probe {{ hostvars[item].ansible_host | default(item) }}
+  loop: "{{ gluster_brick_hosts }}"
+  when: item != inventory_hostname
+  register: gluster_probe
+  failed_when: >
+    gluster_probe.rc not in [0] and
+    ('already in peer list' not in (gluster_probe.stderr | default('')))
+  changed_when: "'already in peer list' not in (gluster_probe.stderr | default(''))"
+
+- name: Build brick list (host:/path)
+  ansible.builtin.set_fact:
+    gluster_bricks_paths: >-
+      {{ gluster_brick_hosts | map('regex_replace', '^(.*)$', '\1:' ~ gluster_brick_path) | list }}
+
+- name: Check if the GlusterFS volume exists
+  ansible.builtin.command: "gluster volume info {{ gluster_volume_name }}"
+  register: gluster_volume_check
+  changed_when: false
+  failed_when: false
+
+- name: Create the GlusterFS volume (single or replicated)
+  ansible.builtin.command: >-
+    gluster volume create {{ gluster_volume_name }}
+    {%- if gluster_brick_hosts | length > 1 %}
+    replica {{ gluster_brick_hosts | length }}
+    {%- endif %}
+    {{ gluster_bricks_paths | join(' ') }} force
+  register: gluster_create
+  when: gluster_volume_check.rc != 0
+  changed_when: "'already exists' not in (gluster_create.stderr | default(''))"
+
+- name: Check if the volume is started
+  ansible.builtin.command: >-
+    gluster volume status {{ gluster_volume_name }}
+  register: gluster_volume_status
+  changed_when: false
+  failed_when: false
+
+- name: Start the GlusterFS volume if it is not started
+  ansible.builtin.command: >-
+    gluster volume start {{ gluster_volume_name }}
+  register: gluster_start
+  when: gluster_volume_status.rc != 0
+  changed_when: "'already' not in (gluster_start.stderr | default(''))"
+
+- name: Get GlusterFS volume info
+  ansible.builtin.command: >-
+    gluster volume info {{ gluster_volume_name }}
+  register: gluster_info
+  changed_when: false
+
+- name: Show GlusterFS volume info
+  ansible.builtin.debug:
+    var: gluster_info.stdout_lines
+  when: debug | default(false)

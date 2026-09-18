@@ -1,0 +1,7 @@
+---
+- name: Configure EEPROM boot mode
+  ansible.builtin.import_tasks: eeprom_config.yml
+
+- name: Reboot node if required
+  ansible.builtin.import_tasks: reboot.yml
+  when: reboot_required | default(false)

@@ -1,0 +1,17 @@
+[Unit]
+Description=Cluster Gateway Failover Monitor
+Documentation=https://github.com/ovmi/rpi-cluster-automation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cluster-gw-monitor.sh
+Restart=on-failure
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cluster-gw-monitor
+
+[Install]
+WantedBy=multi-user.target

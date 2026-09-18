@@ -1,0 +1,80 @@
+---
+- name: Ensure monitoring namespace is defined in k3s_namespaces
+  ansible.builtin.assert:
+    that:
+      - monitoring_namespace in k3s_namespaces
+    fail_msg: >-
+      Namespace '{{ monitoring_namespace }}' is not present in k3s_namespaces.
+      Add it to group_vars/all/main.yml
+
+- name: Check kubeconfig exists
+  ansible.builtin.stat:
+    path: "{{ k3s_kubeconfig }}"
+  register: k3s_kubeconfig_check
+
+- name: Fail if kubeconfig is missing
+  ansible.builtin.fail:
+    msg: "K3s kubeconfig not found at {{ k3s_kubeconfig }}"
+  when: not k3s_kubeconfig_check.stat.exists
+
+- name: Check kubectl availability
+  ansible.builtin.command: kubectl version --client
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  changed_when: false
+
+- name: Ensure k3s admin user exists
+  ansible.builtin.user:
+    name: "{{ k3s_admin_user }}"
+    shell: /bin/bash
+    create_home: true
+
+- name: Ensure k3s admin group exists
+  ansible.builtin.group:
+    name: "{{ k3s_admin_group }}"
+    system: true
+
+- name: Check if Helm is already installed
+  ansible.builtin.command: which helm
+  register: helm_check
+  changed_when: false
+  failed_when: false
+
+- name: Ensure Helm apt prerequisites are installed
+  ansible.builtin.apt:
+    name:
+      - curl
+      - gpg
+      - apt-transport-https
+    state: present
+  become: true
+
+- name: Download Helm apt signing key
+  ansible.builtin.get_url:
+    url: https://packages.buildkite.com/helm-linux/helm-debian/gpgkey
+    dest: /tmp/helm.gpgkey
+    mode: '0644'
+  become: true
+  when: helm_check.rc != 0
+
+- name: Dearmor Helm apt signing key
+  ansible.builtin.shell:
+    cmd: gpg --dearmor < /tmp/helm.gpgkey > /usr/share/keyrings/helm.gpg
+    creates: /usr/share/keyrings/helm.gpg
+  become: true
+  when: helm_check.rc != 0
+
+- name: Add Helm apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main"
+    filename: helm-stable-debian
+    state: present
+  become: true
+  when: helm_check.rc != 0
+
+- name: Ensure Helm is installed
+  ansible.builtin.apt:
+    name: helm
+    state: present
+    update_cache: true
+  become: true

@@ -1,0 +1,37 @@
+---
+- name: Check if ECM interface exists
+  ansible.builtin.command: ip link show {{ lte_ecm_iface }}
+  register: lte_ecm_iface_check
+  changed_when: false
+  failed_when: false
+
+- name: Fail if ECM interface is not available
+  ansible.builtin.fail:
+    msg: "ECM interface {{ lte_ecm_iface }} not found. Make sure the modem is initialized in ECM mode."
+  when: lte_ecm_iface_check.rc != 0
+
+- name: Show ECM routing table
+  ansible.builtin.command: ip route
+  register: ecm_routes
+  changed_when: false
+
+- name: Display ECM routes
+  ansible.builtin.debug:
+    var: ecm_routes.stdout_lines
+  when: debug | default(false)
+
+- name: Test ECM connectivity via interface
+  ansible.builtin.command: ping -I {{ lte_ecm_iface }} -c 3 {{ lte_test_ip }}
+  register: ecm_ping_result
+  changed_when: false
+  failed_when: false
+
+- name: Display ECM connectivity result
+  ansible.builtin.debug:
+    var: ecm_ping_result.stdout_lines
+  when: debug | default(false)
+
+- name: Fail if ECM connectivity test failed
+  ansible.builtin.fail:
+    msg: "ECM connectivity test failed on {{ lte_ecm_iface }}."
+  when: ecm_ping_result.rc != 0

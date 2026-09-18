@@ -1,0 +1,37 @@
+---
+- name: Create per-node TFTP (bootfs) mount points
+  ansible.builtin.file:
+    path: "{{ item.boot_mnt }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+
+- name: Ensure bootfs partition exists
+  ansible.builtin.command: "lsblk -no NAME {{ item.boot_dev }}"
+  register: check_boot
+  changed_when: false
+  failed_when: check_boot.rc != 0
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  loop_control:
+    label: "{{ item.node }} -> {{ item.boot_dev }}"
+
+- name: Mount per-node bootfs under TFTP base
+  ansible.posix.mount:
+    path: "{{ item.boot_mnt }}"
+    src: "{{ item.boot_dev }}"
+    fstype: "{{ bootfs_fstype }}"
+    opts: "{{ bootfs_opts }}"
+    state: mounted
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  loop_control:
+    label: "{{ item.node }} -> {{ item.boot_mnt }}"
+
+- name: Debug filtered list
+  ansible.builtin.debug:
+    msg: "Mount for {{ item.node }} -> {{ item.root_mnt }}"
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  loop_control:
+    label: "{{ item.node }}"
+  when: debug | default(false)

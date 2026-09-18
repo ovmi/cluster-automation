@@ -1,0 +1,25 @@
+---
+# Mode: bootstrap | config
+ssh_mode: config
+
+# cleanup behavior
+ssh_cleanup: false
+
+ssh_key_type: "ed25519"
+ssh_key_bits: 4096 # only used if type is rsa
+ssh_key_comment: "cluster"
+ssh_connection_timeout: 10
+ssh_user: "{{ ansible_user_id | default(lookup('env', 'USER')) }}"
+ssh_group: "{{ ansible_user_gid | default(ssh_user) }}"
+ssh_private_key_file: "id_{{ ssh_key_type }}_cluster"
+ssh_public_key_file: "id_{{ ssh_key_type }}_cluster.pub"
+ssh_private_key_path: "{{ lookup('env', 'HOME') }}/.ssh/{{ ssh_private_key_file }}"
+ssh_public_key_path: "{{ lookup('env', 'HOME') }}/.ssh/{{ ssh_public_key_file }}"
+ssh_known_hosts: "{{ lookup('env', 'HOME') }}/.ssh/known_hosts"
+# ansible_ssh_common_args: "
+#       -o PreferredAuthentications=password,publickey
+#       -o PubkeyAuthentication=yes
+#       -o PasswordAuthentication=yes
+#       -o KbdInteractiveAuthentication=yes"
+
+debug: false                # disable debug output by default

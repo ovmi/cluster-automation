@@ -1,0 +1,48 @@
+---
+- name: Stop NFS server
+  ansible.builtin.systemd:
+    name: nfs-kernel-server
+    state: stopped
+    enabled: false
+
+- name: Disable all NFS exports
+  ansible.builtin.command: exportfs -au
+  changed_when: true
+
+- name: Unmount per-node boot mounts inside rootfs
+  ansible.posix.mount:
+    path: "{{ item.root_mnt }}/boot/firmware"
+    state: unmounted
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+
+- name: Unmount per-node boot partitions
+  ansible.posix.mount:
+    path: "{{ item.boot_mnt }}"
+    state: unmounted
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+
+- name: Unmount per-node rootfs
+  ansible.posix.mount:
+    path: "{{ item.root_mnt }}"
+    state: unmounted
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+
+- name: Remove only export lines for each host from cluster.exports
+  ansible.builtin.lineinfile:
+    path: /etc/exports.d/cluster.exports
+    state: absent
+    regexp: "^{{ nfs_root_dir }}/{{ item.host }}"
+    backup: true
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  loop_control:
+    label: "{{ item.host }}"
+
+- name: Reload exports after removal
+  ansible.builtin.command: exportfs -rav
+  changed_when: true
+
+- name: Start NFS server
+  ansible.builtin.systemd:
+    name: nfs-kernel-server
+    state: started
+    enabled: true

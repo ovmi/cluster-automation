@@ -1,0 +1,169 @@
+---
+- name: Show key distro facts
+  ansible.builtin.debug:
+    msg:
+      distribution: "{{ ansible_facts.distribution | default('n/a') }}"
+      version: "{{ ansible_facts.distribution_version | default('n/a') }}"
+      release: "{{ ansible_facts.distribution_release | default('n/a') }}"
+      lsb_id: "{{ ansible_facts.lsb.id | default('n/a') if ansible_facts.lsb is defined else 'n/a' }}"
+      arch: "{{ ansible_facts.architecture | default('n/a') }}"
+  when: debug | default(false)
+
+- name: Check if /etc/resolv.conf has a nameserver
+  ansible.builtin.command: grep -qc '^nameserver' /etc/resolv.conf
+  register: resolv_nameserver
+  changed_when: false
+  failed_when: false
+
+- name: Add fallback nameserver if /etc/resolv.conf has none
+  ansible.builtin.lineinfile:
+    path: /etc/resolv.conf
+    line: "nameserver {{ fallback_nameserver }}"
+    state: present
+    create: true
+    mode: "0644"
+  when: resolv_nameserver.rc != 0
+
+- name: Gather service facts to check for NetworkManager
+  ansible.builtin.service_facts:
+
+- name: Ensure a persistent static-DNS NetworkManager profile for eth0
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/system-connections/eth0.nmconnection
+    mode: "0600"
+    content: |
+      [connection]
+      id=eth0
+      uuid={{ inventory_hostname | to_uuid }}
+      type=ethernet
+      autoconnect=false
+      interface-name=eth0
+
+      [ipv4]
+      address1={{ ansible_host }}/24,{{ lan_gateway_ip }}
+      dns={{ lan_gateway_ip }};{{ fallback_nameserver }};
+      ignore-auto-dns=true
+      method=manual
+
+      [ipv6]
+      addr-gen-mode=default
+      method=auto
+
+      [proxy]
+  when:
+    - ansible_facts.services.get('NetworkManager.service', {}).get('state') == 'running'
+    - root_fstype.stdout.strip() == "nfs"
+  notify: Note that eth0 NetworkManager profile needs a reboot
+
+- name: Update package cache (Debian only)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts.os_family == "Debian"
+
+- name: Install Debian archive keyring (Debian only)
+  ansible.builtin.apt:
+    name: debian-archive-keyring
+    state: present
+    update_cache: true
+  when:
+    - ansible_facts.os_family == "Debian"
+    - ansible_facts.distribution_release in ["bookworm", "bullseye"]
+
+- name: Add Debian backports repository (Debian only)
+  ansible.builtin.apt_repository:
+    repo: "deb http://deb.debian.org/debian {{ ansible_facts.distribution_release }}-backports main"
+    state: present
+    filename: "{{ ansible_facts.distribution_release }}-backports"
+  when:
+    - ansible_facts.os_family == "Debian"
+    - ansible_facts.distribution_release in ["bookworm", "bullseye"]
+
+# Skipped on NFS-root nodes -- see the README's "dist-upgrade is skipped on
+# NFS-root nodes" section before re-enabling.
+- name: Upgrade all packages (dist-upgrade) (Debian only, not on NFS-root)
+  ansible.builtin.apt:
+    upgrade: dist
+  when:
+    - ansible_facts.os_family == "Debian"
+    - root_fstype.stdout.strip() != "nfs"
+
+- name: Note that dist-upgrade was skipped on NFS-root
+  ansible.builtin.debug:
+    msg: "Skipping dist-upgrade on {{ inventory_hostname }}: root is NFS (see comment above this task)."
+  when:
+    - ansible_facts.os_family == "Debian"
+    - root_fstype.stdout.strip() == "nfs"
+
+- name: Debug current node system info
+  ansible.builtin.debug:
+    msg: >
+      Node {{ inventory_hostname }} (IP: {{ ansible_host | default(inventory_hostname) }}) is running
+      {{ ansible_distribution }} {{ ansible_distribution_version }} {{ ansible_distribution_release }}
+      with kernel version {{ ansible_kernel }} and architecture {{ ansible_architecture }}
+  when: debug | default(false)
+
+- name: Set hostname on all cluster nodes
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Ensure 127.0.1.1 maps to inventory hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^127\\.0\\.1\\.1\\s+"
+    line: "127.0.1.1 {{ inventory_hostname }}"
+
+- name: Build /etc/hosts entries from cluster_update_targets
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^{{ host_ip | regex_escape }}\\s+"
+    line: "{{ host_ip }} {{ host_name }}"
+  loop: "{{ groups['cluster_update_targets'] | default([]) }}"
+  loop_control:
+    loop_var: target
+  vars:
+    host_name: "{{ target }}"
+    host_ip: >-
+      {{
+        hostvars[target].ansible_host
+          | default(hostvars[target].ansible_default_ipv4.address
+          | default(target))
+      }}
+
+- name: Install required packages (Debian only)
+  ansible.builtin.apt:
+    name: "{{ required_packages }}"
+    state: present
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Verify tools exist (non-fatal)
+  ansible.builtin.shell: "command -v {{ item }}"
+  args:
+    executable: /bin/sh
+  loop:
+    - vim
+    - minicom
+    - netstat
+    - ifconfig
+  register: tool_check
+  changed_when: false
+  failed_when: false
+
+- name: Ensure vimrc is present
+  ansible.builtin.stat:
+    path: "{{ vimrc_path }}"
+  register: vimrc_stat
+
+- name: Copy vimrc to target nodes
+  ansible.builtin.copy:
+    src: "{{ vimrc_src }}"
+    dest: "{{ vimrc_path }}"
+    owner: "{{ vimrc_owner }}"
+    group: "{{ vimrc_group }}"
+    mode: "{{ vimrc_mode }}"
+  when: not vimrc_stat.stat.exists
+
+- name: Remove dependencies that are no longer required.
+  ansible.builtin.apt:
+    autoremove: true
+  when: ansible_facts['os_family'] == "Debian"

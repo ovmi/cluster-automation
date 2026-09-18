@@ -1,0 +1,57 @@
+---
+- name: Resolve CPU temperature monitoring targets
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    target_group: cpu_temp_targets
+
+  pre_tasks:
+    - name: Validate temp_monitor_mode parameter
+      ansible.builtin.assert:
+        that:
+          - temp_monitor_mode in ['bare', 'kube']
+        fail_msg: "Invalid mode parameter. Must be one of: bare, kube."
+
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+
+    - name: Add resolved nodes to cpu_temp_targets group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: "{{ target_group }}"
+      loop: "{{ resolved_hosts }}"
+
+    - name: Derive K3S hosts from logical node ids
+      ansible.builtin.set_fact:
+        k3s_control_node: "{{ hostname_map[k3s_control] }}"
+        k3s_worker_nodes: "{{ k3s_workers | map('extract', hostname_map) | list }}"
+      run_once: true
+
+- name: Install CPU temperature monitoring
+  hosts: cpu_temp_targets
+  become: true
+  gather_facts: true
+
+  vars:
+    temp_monitor_mode: "kube"
+
+  pre_tasks:
+    - name: Import derived K3S facts from localhost
+      ansible.builtin.set_fact:
+        k3s_control_node: "{{ hostvars['localhost'].k3s_control_node }}"
+        k3s_worker_nodes: "{{ hostvars['localhost'].k3s_worker_nodes }}"
+
+  roles:
+    - { role: rpi_cpu_temp_mon_bare, when: temp_monitor_mode == 'bare' }
+    - { role: rpi_cpu_temp_mon_kube, when: temp_monitor_mode == 'kube' }
+
+# Install and configure CPU temperature monitoring on cluster nodes.
+# Requires the monitoring stack to already be deployed (run k3s_monitoring_stack.yml first).
+# Example commands:
+# ansible-playbook playbooks/rpi_cpu_temp_monitor.yml -e temp_monitor_mode=kube
+# ansible-playbook playbooks/rpi_cpu_temp_monitor.yml -e nodes=node0,node1 -e temp_monitor_mode=kube [-e debug=true]
+# ansible-playbook playbooks/rpi_cpu_temp_monitor.yml -e temp_monitor_mode=bare

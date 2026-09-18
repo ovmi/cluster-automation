@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# Cluster-wide gateway failover monitor.
+#
+# Runs on every cluster node that is NOT the LTE bridge.  Periodically checks
+# whether the LAN upstream gateway ({{ lan_gateway_ip }}) is reachable. When
+# it has been unreachable for FAIL_THRESHOLD consecutive cycles it switches
+# this node's default gateway to the LTE bridge node ({{ lte_bridge_host_ip }})
+# which is already forwarding traffic via LTE.  Once the LAN gateway recovers
+# for RECOVER_THRESHOLD consecutive cycles the route is reverted.
+
+LAN_GW="{{ lan_gateway_ip }}"
+LTE_NODE="{{ lte_bridge_host_ip }}"   # node3 LAN IP
+LAN_IF="{{ lan_iface }}"
+CHECK_INTERVAL="{{ route_check_interval | default(10) }}"
+PING_COUNT=3
+PING_TIMEOUT=3
+FAIL_THRESHOLD={{ fail_threshold | default(3) }}
+RECOVER_THRESHOLD={{ recover_threshold | default(3) }}
+STATE_FILE="/run/cluster-gw.state"
+LOG_FILE="/var/log/cluster-gw-monitor.log"
+LOG_TAG="cluster-gw-monitor"
+
+log() {
+    local msg="$(date '+%Y-%m-%d %H:%M:%S') $*"
+    echo "${msg}" | tee -a "${LOG_FILE}"
+    logger -t "${LOG_TAG}" -p daemon.info -- "$*"
+}
+
+can_reach() {
+    ping -I "$1" -c "${PING_COUNT}" -W "${PING_TIMEOUT}" "$2" >/dev/null 2>&1
+}
+
+current_gw() {
+    ip route show default 2>/dev/null | awk '/^default via/ { print $3; exit }'
+}
+
+set_default_gw() {
+    local gw=$1
+    local existing
+    existing=$(current_gw)
+    [ "$existing" = "$gw" ] && return 0
+    if ip route replace default via "${gw}" dev "${LAN_IF}" 2>/dev/null; then
+        log "Gateway changed: ${existing:-<none>} → ${gw}"
+        echo "${gw}" > "${STATE_FILE}"
+        return 0
+    else
+        log "ERROR: failed to set gateway to ${gw}"
+        return 1
+    fi
+}
+
+ACTIVE=""
+fail_count=0
+ok_count=0
+
+log "Started (LAN_GW=${LAN_GW} LTE_NODE=${LTE_NODE} interval=${CHECK_INTERVAL}s fail_thr=${FAIL_THRESHOLD} recover_thr=${RECOVER_THRESHOLD})"
+
+while true; do
+    # ---- probe LAN gateway -------------------------------------------------
+    if can_reach "${LAN_IF}" "${LAN_GW}"; then
+        fail_count=0
+        (( ok_count++ )) || true
+        LAN_OK=true
+    else
+        ok_count=0
+        # Only count failures while on LAN — in lte_node state the counter is
+        # irrelevant and would accumulate confusingly in the log.
+        [ "${ACTIVE}" = "lte_node" ] || (( fail_count++ )) || true
+        LAN_OK=false
+    fi
+
+    # ---- state machine -----------------------------------------------------
+    case "${ACTIVE}" in
+        lan)
+            if [ "${fail_count}" -ge "${FAIL_THRESHOLD}" ]; then
+                if can_reach "${LAN_IF}" "${LTE_NODE}"; then
+                    log "LAN upstream down (${fail_count}× fail) — switching to LTE node ${LTE_NODE}"
+                    set_default_gw "${LTE_NODE}" && ACTIVE="lte_node"
+                    fail_count=0
+                else
+                    log "LAN upstream down and LTE node ${LTE_NODE} unreachable — no failover"
+                    ACTIVE="down"
+                fi
+            fi
+            ;;
+
+        lte_node)
+            if [ "${ok_count}" -ge "${RECOVER_THRESHOLD}" ]; then
+                log "LAN upstream recovered (${ok_count}× ok) — reverting to ${LAN_GW}"
+                set_default_gw "${LAN_GW}" && ACTIVE="lan"
+                ok_count=0
+            fi
+            ;;
+
+        down)
+            if [ "${LAN_OK}" = true ]; then
+                log "Connectivity restored via LAN — setting gateway to ${LAN_GW}"
+                set_default_gw "${LAN_GW}" && ACTIVE="lan"
+            elif can_reach "${LAN_IF}" "${LTE_NODE}"; then
+                log "LTE node ${LTE_NODE} now reachable — switching gateway"
+                set_default_gw "${LTE_NODE}" && ACTIVE="lte_node"
+            fi
+            ;;
+
+        *)
+            # Initial startup: detect current network state
+            if [ "${LAN_OK}" = true ]; then
+                log "Init: LAN reachable — using ${LAN_GW}"
+                set_default_gw "${LAN_GW}" && ACTIVE="lan"
+            elif can_reach "${LAN_IF}" "${LTE_NODE}"; then
+                log "Init: LAN down, LTE node reachable — using ${LTE_NODE}"
+                set_default_gw "${LTE_NODE}" && ACTIVE="lte_node"
+            else
+                log "Init: no upstream reachable"
+                ACTIVE="down"
+            fi
+            ;;
+    esac
+
+    log "STATUS active=${ACTIVE} ok=${ok_count} fail=${fail_count} gw=$(current_gw)"
+    sleep "${CHECK_INTERVAL}"
+done

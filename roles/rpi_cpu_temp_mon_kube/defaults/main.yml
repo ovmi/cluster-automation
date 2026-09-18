@@ -1,0 +1,8 @@
+node_exporter_collector: /var/lib/node_exporter/textfile_collector
+node_exporter_user: node_exporter
+node_exporter_group: node_exporter
+node_exporter_mode: '0755'
+
+smtp_host: "smtp.gmail.com:465"
+smtp_user: "ovidiu.mihalachi@gmail.com"
+grafana_smtp_password: "{{ lookup('env', 'GRAFANA_SMTP_PASSWORD') }}"

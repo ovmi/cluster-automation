@@ -1,0 +1,104 @@
+---
+- name: Check if QMI control device exists
+  ansible.builtin.stat:
+    path: "{{ lte_qmi_device }}"
+  register: qmi_device_stat
+
+- name: Fail if QMI control device is missing
+  ansible.builtin.fail:
+    msg: "QMI control device {{ lte_qmi_device }} not found."
+  when: not qmi_device_stat.stat.exists
+
+- name: Check if QMI network interface exists
+  ansible.builtin.command: ip link show {{ lte_qmi_iface }}
+  register: qmi_iface_check
+  changed_when: false
+  failed_when: false
+
+- name: Fail if QMI network interface is not available
+  ansible.builtin.fail:
+    msg: "QMI interface {{ lte_qmi_iface }} not found."
+  when: qmi_iface_check.rc != 0
+
+- name: Set raw_ip mode on QMI interface
+  ansible.builtin.shell: |
+    set -e
+    ip link set {{ lte_qmi_iface }} down
+    echo Y > /sys/class/net/{{ lte_qmi_iface }}/qmi/raw_ip
+    ip link set {{ lte_qmi_iface }} up
+  args:
+    executable: /bin/bash
+  changed_when: true
+
+- name: Start QMI data session
+  ansible.builtin.command: >
+    qmicli -d {{ lte_qmi_device }}
+    --device-open-proxy
+    --wds-start-network=apn={{ lte_apn }},ip-type=4
+    --client-no-release-cid
+  register: qmi_start_result
+  changed_when: false
+  failed_when: qmi_start_result.rc != 0 and
+               ('Network started' not in qmi_start_result.stdout)
+
+- name: Display QMI session start result
+  ansible.builtin.debug:
+    var: qmi_start_result.stdout_lines
+  when: debug | default(false)
+
+- name: Get QMI current settings
+  ansible.builtin.command: >
+    qmicli -d {{ lte_qmi_device }} --wds-get-current-settings
+  register: qmi_settings_raw
+  changed_when: false
+  failed_when: false
+
+- name: Display QMI current settings
+  ansible.builtin.debug:
+    var: qmi_settings_raw.stdout_lines
+  when: debug | default(false)
+
+- name: Parse QMI IPv4 settings
+  ansible.builtin.set_fact:
+    qmi_ipv4_addr: "{{ (qmi_settings_raw.stdout | regex_search('IPv4 address:\\s*([0-9\\.]+)', '\\1')) | first }}"
+    qmi_ipv4_mask: "{{ (qmi_settings_raw.stdout | regex_search('IPv4 subnet mask:\\s*([0-9\\.]+)', '\\1')) | first }}"
+    qmi_ipv4_gw: "{{ (qmi_settings_raw.stdout | regex_search('IPv4 gateway address:\\s*([0-9\\.]+)', '\\1')) | first }}"
+    qmi_dns1: "{{ (qmi_settings_raw.stdout | regex_search('IPv4 primary DNS:\\s*([0-9\\.]+)', '\\1')) | first }}"
+    qmi_dns2: "{{ (qmi_settings_raw.stdout | regex_search('IPv4 secondary DNS:\\s*([0-9\\.]+)', '\\1')) | first }}"
+    qmi_mtu: "{{ (qmi_settings_raw.stdout | regex_search('MTU:\\s*([0-9]+)', '\\1')) | first }}"
+
+- name: Convert subnet mask to prefix
+  ansible.builtin.set_fact:
+    qmi_prefix: "{{ qmi_ipv4_mask | ipaddr('prefix') }}"
+
+- name: Configure IPv4 on QMI interface with gateway
+  ansible.builtin.shell: |
+    set -e
+    ip addr flush dev {{ lte_qmi_iface }}
+    ip addr add {{ qmi_ipv4_addr }}/{{ qmi_prefix }} dev {{ lte_qmi_iface }}
+    ip link set {{ lte_qmi_iface }} mtu {{ qmi_mtu }}
+
+    # Add host route to gateway (required for /32 raw-ip)
+    ip route replace {{ qmi_ipv4_gw }} dev {{ lte_qmi_iface }} scope link
+
+    # Now set default route
+    ip route replace default via {{ qmi_ipv4_gw }} dev {{ lte_qmi_iface }}
+  args:
+    executable: /bin/bash
+  changed_when: true
+
+- name: Test QMI connectivity via interface
+  ansible.builtin.command: ping -I {{ lte_qmi_iface }} -c 3 {{ lte_test_ip }}
+  register: qmi_ping_result
+  changed_when: false
+  failed_when: false
+
+- name: Display QMI connectivity result
+  ansible.builtin.debug:
+    var: qmi_ping_result.stdout_lines
+  when: debug | default(false)
+
+- name: Fail if QMI connectivity test failed
+  ansible.builtin.fail:
+    msg: "QMI connectivity test failed on {{ lte_qmi_iface }}."
+  when: qmi_ping_result.rc != 0

@@ -1,0 +1,15 @@
+- name: Create secret for Grafana SMTP password
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: grafana-smtp-secret
+        namespace: "{{ monitoring_namespace }}"
+      type: Opaque
+      stringData:
+        GRAFANA_SMTP_PASSWORD: "{{ grafana_smtp_password }}"
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  when: grafana_smtp_password | length > 0

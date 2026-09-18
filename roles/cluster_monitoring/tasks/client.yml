@@ -1,0 +1,11 @@
+---
+- name: Run iperf3 client benchmark
+  ansible.builtin.command:
+    cmd: iperf3 -c {{ hostvars[iperf_server_host].ansible_host }} -t 10
+  register: iperf_result
+  changed_when: false
+  throttle: 1
+
+- name: Display network bandwidth results
+  ansible.builtin.debug:
+    var: iperf_result.stdout_lines

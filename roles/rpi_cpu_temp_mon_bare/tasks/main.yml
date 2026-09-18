@@ -1,0 +1,10 @@
+---
+- name: Configure Prometheus to scrape Node Explorer
+  ansible.builtin.import_tasks: prometheus_install.yml
+  when: inventory_hostname == groups['control'][0]
+
+- name: Install and configure Node Exporter as systemd service
+  ansible.builtin.import_tasks: node_exporter_install.yml
+
+- name: Configure CPU temperature monitoring
+  ansible.builtin.import_tasks: cpu_temp_mon_config.yml

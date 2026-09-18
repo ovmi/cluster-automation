@@ -1,0 +1,91 @@
+---
+- name: Detect if root is NFS
+  ansible.builtin.command: findmnt -no FSTYPE /
+  register: root_fstype
+  changed_when: false
+
+- name: Update apt package cache
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Upgrade apt packages (not on NFS-root)
+  ansible.builtin.apt:
+    upgrade: full
+  when: root_fstype.stdout.strip() != "nfs"
+
+- name: Download K3s install script
+  ansible.builtin.get_url:
+    url: "{{ k3s_installer_url }}"
+    dest: /tmp/get-k3s.sh
+    mode: '0755'
+
+- name: Run K3s installer
+  ansible.builtin.command: sh /tmp/get-k3s.sh
+  args:
+    creates: /usr/local/bin/k3s
+  register: k3s_install
+  changed_when: k3s_install.rc == 0
+  failed_when: k3s_install.rc != 0
+
+- name: Enable and start k3s service
+  ansible.builtin.systemd:
+    name: k3s
+    enabled: true
+    state: started
+
+- name: Install Kubernetes Python client library
+  ansible.builtin.pip:
+    name: kubernetes
+    executable: pip3
+    extra_args: --break-system-packages --ignore-installed
+    state: present
+
+- name: Download kubectl binary
+  ansible.builtin.get_url:
+    url: "{{ kubectl_url }}"
+    dest: /usr/local/bin/kubectl
+    mode: '0755'
+
+- name: Verify kubectl installation
+  ansible.builtin.command: kubectl version --client
+  register: kubectl_version
+  changed_when: false
+
+- name: Display installed kubectl version
+  ansible.builtin.debug:
+    msg: "{{ kubectl_version.stdout }}"
+  when: debug | default(false)
+
+- name: Create kubeconfig directory
+  ansible.builtin.file:
+    path: "/home/{{ k3s_admin_user }}/.kube"
+    state: directory
+    owner: "{{ k3s_admin_user }}"
+    group: "{{ k3s_admin_group }}"
+    mode: '0755'
+
+- name: Copy kubeconfig for user
+  ansible.builtin.copy:
+    src: "{{ k3s_kubeconfig }}"
+    dest: "/home/{{ k3s_admin_user }}/.kube/config"
+    owner: "{{ k3s_admin_user }}"
+    group: "{{ k3s_admin_group }}"
+    mode: '0600'
+    remote_src: true
+
+- name: Update kubeconfig server address
+  ansible.builtin.lineinfile:
+    path: "/home/{{ k3s_admin_user }}/.kube/config"
+    regexp: '^    server:'
+    line: '    server: https://{{ ansible_host }}:{{ k3s_api_port }}'
+    owner: "{{ k3s_admin_user }}"
+    group: "{{ k3s_admin_group }}"
+    mode: '0600'
+
+- name: Create manifests directory for k3s
+  ansible.builtin.file:
+    path: "{{ kube_manifests_dir }}"
+    state: directory
+    owner: "{{ k3s_admin_user }}"
+    group: "{{ k3s_admin_user }}"
+    mode: '0755'

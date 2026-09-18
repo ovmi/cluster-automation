@@ -1,0 +1,58 @@
+grafana:
+  enabled: true
+
+  admin:
+    # Pointed at the Secret k3s_monitoring_stack creates and points the
+    # initial release at (see roles/k3s_monitoring_stack/tasks/
+    # prometheus_install.yml). This upgrade doesn't pass --reuse-values, so
+    # without repeating existingSecret here the chart falls back to rendering
+    # its own Grafana secret -- which collides with the existing non-Helm-owned
+    # one and fails with an ownership-metadata error.
+    existingSecret: monitoring-grafana
+    userKey: admin-user
+    passwordKey: admin-password
+
+  smtp:
+    enabled: true
+    host: "{{ smtp_host }}"
+    user: "{{ smtp_user }}"
+    password: "{{ grafana_smtp_password }}"
+    fromAddress: "{{ smtp_user }}"
+    fromName: "CPU Temperature Monitor"
+    skipVerify: false
+    startTLSPolicy: "NoStartTLS"
+    # Options: "OpportunisticStartTLS", "MandatoryStartTLS", "NoStartTLS"
+
+  envValueFrom:
+    GF_SMTP_PASSWORD:
+      secretKeyRef:
+        name: grafana-smtp-secret
+        key: GRAFANA_SMTP_PASSWORD
+
+  env:
+    GF_SMTP_ENABLED: "true"
+    GF_SMTP_HOST: "{{ smtp_host }}"
+    GF_SMTP_USER: "{{ smtp_user }}"
+    GF_SMTP_FROM_ADDRESS: "{{ smtp_user }}"
+    GF_SMTP_FROM_NAME: "CPU Temperature Monitor"
+    GF_SMTP_SKIP_VERIFY: "false"
+    GF_SMTP_STARTTLS_POLICY: "NoStartTLS"
+
+prometheus-node-exporter:
+  enabled: true
+
+  extraArgs:
+    - --collector.textfile.directory={{ node_exporter_collector }}
+
+  hostRootFsMount:
+    enabled: true
+
+  extraVolumes:
+    - name: textfile-collector
+      hostPath:
+        path: {{ node_exporter_collector }}
+        type: DirectoryOrCreate
+
+  extraVolumeMounts:
+    - name: textfile-collector
+      mountPath: {{ node_exporter_collector}}

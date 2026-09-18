@@ -1,0 +1,61 @@
+---
+- name: Build pxe_nodes map
+  ansible.builtin.set_fact:
+    pxe_nodes: "{{ pxe_nodes + [ {
+      'node': item,
+      'host': hostname_map[item],
+      'bootfs_type': bootfs_fstype,
+      'rootfs_type': rootfs_fstype,
+      'bootfs_opts': bootfs_opts,
+      'rootfs_opts': rootfs_opts,
+      'boot_part': nvme_map[item][slot_param].boot,
+      'root_part': nvme_map[item][slot_param].root,
+      'boot_dev': nvme_device ~ 'p' ~ nvme_map[item][slot_param].boot,
+      'root_dev': nvme_device ~ 'p' ~ nvme_map[item][slot_param].root,
+      'boot_mnt': tftp_dir ~ '/' ~ hostname_map[item],
+      'root_mnt': nfs_root_dir ~ '/' ~ hostname_map[item]
+      } ] }}"
+  loop: "{{ nodes_list }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Debug pxe_nodes map
+  ansible.builtin.debug:
+    var: pxe_nodes
+  when: debug | default(false)
+
+# Run the clean/uninstall NFS workflow
+- name: Run NFS clean/uninstall workflow
+  when: nfs_action == 'remove'
+  block:
+    - name: Umount NFS shares on nodes
+      ansible.builtin.import_tasks: pxe_node_remove.yml
+
+# Run the add/mount NFS shares workflow
+- name: Install path
+  when: nfs_action == 'add'
+  block:
+    - name: Mount NFS shares on nodes
+      ansible.builtin.import_tasks: pxe_node_install.yml
+
+# Run the install/config PXE server workflow
+- name: Install path
+  when: nfs_action == 'install'
+  block:
+    - name: Install NFS server on controller
+      ansible.builtin.include_tasks: nfs_install.yml
+
+    - name: Mount NFS shares on nodes
+      ansible.builtin.import_tasks: pxe_node_install.yml
+
+    - name: Configure NFS exports on controller
+      ansible.builtin.import_tasks: nfs_post_install.yml
+
+#    - name: Install TFTP server on controller
+#      ansible.builtin.import_tasks: tftp_install.yml
+
+    - name: Install DNS server (dnsmaq) on controller
+      ansible.builtin.import_tasks: dnsmasq_install.yml
+
+    - name: Configure TFTP server (dnsmaq) on controller
+      ansible.builtin.import_tasks: tftp_config.yml

@@ -1,0 +1,100 @@
+---
+- name: Stat k3s uninstall scripts
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /usr/local/bin/k3s-uninstall.sh
+    - /usr/local/bin/k3s-agent-uninstall.sh
+  register: k3s_uninstall_scripts
+
+- name: Get uninstall script path
+  ansible.builtin.set_fact:
+    k3s_uninstall_script: >-
+      {{
+        '/usr/local/bin/k3s-uninstall.sh'
+          if (k3s_uninstall_scripts.results
+              | selectattr('item','equalto','/usr/local/bin/k3s-uninstall.sh')
+              | map(attribute='stat.exists') | first) | default(false)
+        else
+        '/usr/local/bin/k3s-agent-uninstall.sh'
+          if (k3s_uninstall_scripts.results
+              | selectattr('item','equalto','/usr/local/bin/k3s-agent-uninstall.sh')
+              | map(attribute='stat.exists') | first) | default(false)
+        else
+        omit
+      }}
+
+- name: Debug stat results
+  ansible.builtin.debug:
+    var: k3s_uninstall_scripts.results
+  when: debug | default(false)
+
+- name: Run the K3s uninstall script if present
+  when: k3s_uninstall_script is defined
+  become: true
+  ansible.builtin.command:
+    argv: ["{{ k3s_uninstall_script }}"]
+  changed_when: true
+
+- name: Remove leftover directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/rancher
+    - /var/lib/rancher
+    - /var/lib/kubelet
+    - /var/lib/cni
+    - /run/k3s
+    - /run/flannel
+
+- name: Remove leftover unit files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/k3s.service
+    - /etc/systemd/system/k3s-agent.service
+    - /etc/systemd/system/k3s.service.env
+    - /etc/systemd/system/k3s-agent.service.env
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Remove k3s binaries and helper symlinks
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/bin/k3s
+    - /usr/local/bin/k3s-agent
+    - /usr/local/bin/k3s-killall.sh
+    - /usr/local/bin/k3s-uninstall.sh
+    - /usr/local/bin/k3s-agent-uninstall.sh
+    - /usr/local/bin/kubectl
+    - /usr/local/bin/crictl
+    - /usr/local/bin/ctr
+
+- name: Remove flannel interface if present
+  ansible.builtin.command: ip link delete flannel.1
+  register: flannel_rm
+  failed_when: false
+  changed_when: flannel_rm.rc == 0
+
+- name: Remove cni0 bridge if present
+  ansible.builtin.command: ip link delete cni0
+  register: cni0_rm
+  failed_when: false
+  changed_when: cni0_rm.rc == 0
+
+- name: Check if k3s is still in PATH
+  ansible.builtin.command: command -v k3s
+  register: k3s_check
+  failed_when: false
+  changed_when: false
+
+- name: Fail if k3s is still present after removal
+  ansible.builtin.fail:
+    msg: "k3s still present in PATH after uninstall."
+  when: k3s_check.rc == 0

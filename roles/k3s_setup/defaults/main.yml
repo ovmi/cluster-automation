@@ -1,0 +1,13 @@
+---
+# K3s installation settings
+k3s_mode: "none"                # Options: none, install, remove
+
+# Version and URLs
+kubectl_version: "v1.29.2"
+kubectl_arch_mapping:
+  x86_64: "amd64"
+  aarch64: "arm64"
+kubectl_url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/{{ kubectl_arch_mapping[ansible_architecture] }}/kubectl"
+k3s_installer_url: "https://get.k3s.io"
+
+debug: false                # disable debug output by default

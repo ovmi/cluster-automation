@@ -1,0 +1,83 @@
+- name: Detect if Ansible runs inside a virtualenv
+  ansible.builtin.set_fact:
+    is_ansible_venv: "{{ ansible_playbook_python is search('/.venv/') }}"
+
+- name: Determine if Ansible version is >= 2.10
+  ansible.builtin.set_fact:
+    is_ansible_2_10_plus: "{{ ansible_version.full is version('2.10', '>=') }}"
+
+- name: Show Ansible version
+  ansible.builtin.debug:
+    msg: "Ansible version = {{ ansible_version.full }}"
+
+- name: Set correct collections path based on environment
+  ansible.builtin.set_fact:
+    ansible_collections_path: >-
+      {%- if ansible_playbook_python is search('/\\.venv/') -%}
+      {{ (ansible_playbook_python | regex_replace('^(.*/\\.venv).*', '\\1')) ~
+         '/lib/python' ~ ansible_facts.python.version.major ~ '.' ~ ansible_facts.python.version.minor ~
+         '/site-packages/ansible/collections' }}
+      {%- else -%}
+      {{ lookup('env', 'HOME') ~ '/.ansible/collections' }}
+      {%- endif -%}
+
+- name: Ensure ANSIBLE_COLLECTIONS_PATHS env is set (for 2.14+)
+  ansible.builtin.set_fact:
+    ansible_env: "{{ ansible_env | default({}) | combine({'ANSIBLE_COLLECTIONS_PATHS': ansible_collections_path}) }}"
+
+- name: Show resolved Ansible collections path
+  ansible.builtin.debug:
+    msg: "Collections path = {{ ansible_collections_path }}"
+
+# Check if required collections are installed
+- name: Check if community.crypto is installed
+  ansible.builtin.command: >
+    ansible-galaxy collection list --collections-path {{ ansible_collections_path }}
+  register: crypto_list
+  changed_when: false
+  failed_when: false
+  when: is_ansible_2_10_plus
+
+- name: Mark community.crypto presence
+  ansible.builtin.set_fact:
+    community_crypto_installed: "{{ 'community.crypto' in crypto_list.stdout }}"
+  when: is_ansible_2_10_plus
+
+- name: Check kubernetes.core availability
+  ansible.builtin.command: >
+    ansible-galaxy collection list --collections-path {{ ansible_collections_path }}
+  register: kubernetes_list
+  changed_when: false
+  failed_when: false
+  when: is_ansible_2_10_plus
+
+- name: Mark kubernetes.core presence
+  ansible.builtin.set_fact:
+    kubernetes_core_installed: "{{ 'kubernetes.core' in kubernetes_list.stdout }}"
+  when: is_ansible_2_10_plus
+
+- name: Fail if community.crypto is missing
+  ansible.builtin.fail:
+    msg: |
+      Missing required collection: community.crypto
+      Install it using:
+        ansible-galaxy collection install -r collections/requirements.yml
+  when: is_ansible_2_10_plus and not community_crypto_installed
+
+- name: Fail if kubernetes.core is missing
+  ansible.builtin.fail:
+    msg: |
+      Missing required collection: kubernetes.core
+      Install it using:
+        ansible-galaxy collection install -r collections/requirements.yml
+  when: is_ansible_2_10_plus and not kubernetes_core_installed
+
+# Set compatible module names
+- name: Set compatible module names
+  ansible.builtin.set_fact:
+    openssh_keypair_module: >-
+      {{
+        'community.crypto.openssh_keypair'
+        if is_ansible_2_10_plus else
+        'ansible.builtin.openssh_keypair'
+      }}

@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# This script collects the CPU temperature and writes it to a Prometheus textfile format.
+# Reads the kernel thermal zone directly (/sys/class/thermal), so the same script works
+# unmodified on any board that exposes one -- confirmed across Pi 4 and Pi 5 so far.
+# The temperature is then written to a file in the specified directory in a format that Prometheus can scrape.
+# Usage: ./temperature_exporter.sh
+
+# Check if the required directory exists
+if [ ! -d "{{ node_exporter_collector }}" ]; then
+    echo "Directory {{ node_exporter_collector }} does not exist. Creating it."
+    mkdir -p {{ node_exporter_collector }}
+fi
+
+# Check if the Prometheus text file format with CPU temperature exists
+output_file="{{ node_exporter_collector }}/temperature.prom"
+if [ ! -f "$output_file" ]; then
+    echo "Prometheus file does not exists. Creating it."
+    touch "$output_file"
+
+    # Fix ownership and permissions
+    chown {{ node_exporter_user }}:{{ node_exporter_group }} "$output_file"
+    chmod 644 "$output_file"
+fi
+
+temp_raw=$(awk '{printf "%.1f", $1 / 1000}' /sys/class/thermal/thermal_zone0/temp)
+
+output="{{ node_exporter_collector }}/temperature.prom"
+echo "# HELP node_cpu_temperature_celsius CPU temperature in Celsius" > "$output"
+echo "# TYPE node_cpu_temperature_celsius gauge" >> "$output"
+echo "node_cpu_temperature_celsius ${temp_raw}" >> "$output"

@@ -1,0 +1,15 @@
+- name: Create mount point for GlusterFS volume
+  ansible.builtin.file:
+    path: "{{ gluster_volume_mountpoint }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Mount GlusterFS volume (persistent + idempotent)
+  ansible.posix.mount:
+    path: "{{ gluster_volume_mountpoint }}"
+    src: "{{ gluster_control_host }}:/{{ gluster_volume_name }}"
+    fstype: glusterfs
+    opts: defaults,_netdev
+    state: mounted

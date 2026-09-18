@@ -1,0 +1,38 @@
+---
+- name: Resolve Docker installation targets
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  pre_tasks:
+    - name: Validate mode parameter
+      ansible.builtin.assert:
+        that:
+          - docker_mode in ['install', 'remove']
+        fail_msg: "Invalid docker_mode parameter. Must be one of: install, remove."
+
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+
+    - name: Add resolved nodes to docker_targets group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: docker_targets
+      loop: "{{ resolved_hosts }}"
+
+- name: Docker installation\uninstallation on target nodes
+  hosts: docker_targets
+  gather_facts: true
+  become: true
+
+  roles:
+    - docker_setup
+
+# Install and configure Docker on specified cluster nodes.
+# Example command line to run this playbook:
+# Install Docker on the specified nodes:
+# ansible-playbook playbooks/docker_setup.yml -e nodes=node0,node1 -e docker_mode=install [-e debug=true]
+# Remove Docker from the specified nodes:
+# ansible-playbook playbooks/docker_setup.yml -e nodes=node1 -e docker_mode=remove [-e debug=true]

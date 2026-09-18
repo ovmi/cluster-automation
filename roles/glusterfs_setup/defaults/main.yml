@@ -1,0 +1,21 @@
+---
+# Default variables for GlusterFS setup
+glusterfs_mode: none            # Options: none, install, remove
+
+gluster_volume_name: gv0        # Name of the GlusterFS volume
+gluster_brick_path: /mnt/glusterfs-brick          # Path on brick nodes for GlusterFS bricks
+gluster_volume_mountpoint: /mnt/glusterfs-volume  # Mount point for the GlusterFS volume
+gluster_brick_device: /dev/sda  # Device to use for bricks (e.g., /dev/sda)
+
+gluster_pkg_version: "11.1"     # Optional specific version to install (e.g., "9.3-1")
+
+gluster_packages:
+  - glusterfs-server
+  - glusterfs-client
+gluster_purge: false
+gluster_cleanup_paths:
+  - /var/lib/glusterd
+  - /var/log/glusterfs
+  - /etc/glusterfs
+
+allow_format: false             # Allow formatting of disks on brick nodes

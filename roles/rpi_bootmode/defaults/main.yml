@@ -1,0 +1,49 @@
+# Documentation: https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#raspberry-pi-boot-modes
+
+# Mapping of boot mode names to BOOT_ORDER values
+boot_devices:
+  sd: "1"               # SD card boot
+  net: "2"              # Network boot - PXE
+  rpiboot: "3"          # Raspberry Pi boot (USB or network)
+  usb: "4"              # USB mass storage boot
+  nvme: "6"             # PCIe NVMe (on Pi 5) or USB->NVMe adapters (Pi 4 via USB boot)
+  http: "7"             # HTTP boot over ethernet
+  restart: "f"          # Restart from the first boot-mode
+
+# Boot sequences for different modes
+boot_sequences:
+  nvme_prio: ["restart", "usb", "sd", "nvme"]
+  sdcard_prio: ["restart", "usb", "nvme", "sd"]
+  sdcard_prio_workers: ["restart", "usb", "net", "sd"]
+  net_prio: ["restart", "usb", "sd", "net"]
+
+# Derived boot order strings
+boot_params:
+  nvme_prio: {}
+  sdcard_prio: {}
+  sdcard_prio_workers: {}
+  net_prio:
+    TFTP_SERVER: "{{ tftp_server }}"  # TFTP server IP address
+    TFTP_PREFIX: 1                    # use the string specified by TFTP_PREFIX_STR
+    TFTP_PREFIX_STR: "node"           # to be filled in per-node hostname
+    NET_INSTALL_AT_POWER_ON: "1"      # enable network boot at power on
+
+# boot_mode: nvme_prio                # Options: nvme_prio, sdcard_prio,
+#                                     #          sdcard_prio_workers, net_prio
+# boot_mode_expected: '^/dev/nvme'    # Options: nvme_prio: '^/dev/nvme'
+#                                     #          sdcard_prio: '^/dev/mmcblk'
+#                                     #          sdcard_prio_workers: '^/dev/mmcblk'
+#                                     #          usb_prio: '^/dev/sd[a-z]'
+#                                     #          net_prio: '^(nfs:|nbd:|overlay:)'
+
+# Control behavior
+bootmode_reboot: true       # reboot if EEPROM changed
+bootmode_verify_root: true  # verify root device after reboot
+
+# Reboot wait timeouts (seconds) -- see the README's "A real EEPROM change
+# takes much longer to come back" note before lowering
+# bootmode_reboot_up_timeout.
+bootmode_reboot_down_timeout: 90
+bootmode_reboot_up_timeout: 600
+
+debug: false                # disable debug output by default

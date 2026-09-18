@@ -1,0 +1,17 @@
+---
+- name: Monitoring setup prerequisites
+  ansible.builtin.include_tasks: pre_install.yml
+
+- name: Deploy and configure Prometheus
+  ansible.builtin.include_tasks: prometheus_install.yml
+  when: prometheus_enabled | bool
+
+- name: Deploy and configure Grafana
+  ansible.builtin.include_tasks: grafana_install.yml
+  when: grafana_enabled | bool
+
+- name: Deploy and configure Traefik Ingress Controller
+  ansible.builtin.import_tasks: traefik_install.yml
+
+- name: Configure ingresses
+  ansible.builtin.include_tasks: ingress_config.yml

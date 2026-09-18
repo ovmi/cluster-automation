@@ -1,0 +1,21 @@
+---
+prometheus_enabled: true
+grafana_enabled: true
+
+prometheus_replicas: 1
+grafana_replicas: 1
+
+prometheus_port: '9090'
+grafana_port: '80'
+
+prometheus_hostname: "prometheus.{{ k3s_cluster_domain }}"
+grafana_hostname: "grafana.{{ k3s_cluster_domain }}"
+traefik_hostname: "traefik.{{ k3s_cluster_domain }}"
+
+debug: false                  # Enable debug output
+
+# The default 5m Helm wait timeout is insufficient on this hardware.
+# Initial deployment can take ~10m as Prometheus, Grafana, Alertmanager,
+# kube-state-metrics, the operator, and node-exporter start and pull images
+# concurrently. Helm may time out even when the deployment is healthy.
+helm_install_timeout: "15m"

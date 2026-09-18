@@ -1,0 +1,69 @@
+---
+- name: Ensure monitoring namespace exists
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Namespace
+    name: "{{ monitoring_namespace }}"
+    state: present
+    kubeconfig: "{{ k3s_kubeconfig }}"
+
+- name: Add Prometheus Community Helm repository
+  kubernetes.core.helm_repository:
+    name: prometheus-community
+    repo_url: https://prometheus-community.github.io/helm-charts
+
+- name: Ensure Grafana admin credentials secret exists
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: monitoring-grafana
+        namespace: "{{ monitoring_namespace }}"
+      type: Opaque
+      stringData:
+        admin-user: "{{ grafana_admin_user }}"
+        admin-password: "{{ grafana_admin_password }}"
+    kubeconfig: "{{ k3s_kubeconfig }}"
+
+- name: Install kube-prometheus-stack
+  kubernetes.core.helm:
+    name: "{{ helm_release_monitoring }}"
+    chart_ref: prometheus-community/kube-prometheus-stack
+    release_namespace: "{{ monitoring_namespace }}"
+    create_namespace: true
+    kubeconfig: "{{ k3s_kubeconfig }}"
+    wait: true
+    timeout: "{{ helm_install_timeout }}"
+    values:
+      grafana:
+        admin:
+          # Pointed at the secret created above so the chart never renders/owns a Secret of
+          # its own — otherwise any later `helm upgrade` from another role (e.g. rpi_cpu_temp_mon_kube)
+          # that also sets existingSecret gets its manifest diffed against this release's first
+          # revision, which DOES own the secret, causing Helm to prune it as "no longer desired".
+          existingSecret: monitoring-grafana
+          userKey: admin-user
+          passwordKey: admin-password
+
+- name: Wait for Prometheus pod
+  ansible.builtin.command: >-
+    kubectl wait
+    --namespace {{ monitoring_namespace }}
+    --for=condition=Ready
+    pod
+    -l app.kubernetes.io/name=prometheus
+    --timeout=300s
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  changed_when: false
+
+- name: Add Prometheus hostnames to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars[k3s_control_node].ansible_host }} {{ prometheus_hostname }}"
+    state: present
+  become: true
+  delegate_to: localhost
+  run_once: true

@@ -1,0 +1,48 @@
+---
+- name: Show key distro facts
+  ansible.builtin.debug:
+    msg:
+      distribution: "{{ ansible_facts.distribution | default('n/a') }}"
+      version: "{{ ansible_facts.distribution_version | default('n/a') }}"
+      release: "{{ ansible_facts.distribution_release | default('n/a') }}"
+      lsb_id: "{{ ansible_facts.lsb.id | default('n/a') if ansible_facts.lsb is defined else 'n/a' }}"
+      arch: "{{ ansible_facts.architecture | default('n/a') }}"
+
+- name: Install GlusterFS on Ubuntu 24.04 (Noble)
+  ansible.builtin.apt:
+    name: "{{ gluster_packages }}"
+    state: present
+    update_cache: true
+  when:
+    - ansible_facts.os_family == "Debian"
+    - ansible_facts.distribution | lower == "ubuntu"
+    - ansible_facts.distribution_release | lower == "noble"
+
+
+- name: Ensure Bookworm backports present (Debian 12 incl. Raspberry Pi OS)
+  ansible.builtin.apt_repository:
+    repo: "deb http://deb.debian.org/debian bookworm-backports main"
+    filename: "backports"
+    state: present
+  when:
+    - ansible_facts.os_family == "Debian"
+    - ansible_facts.distribution | lower == "debian"
+    - ansible_facts.distribution_release | lower == "bookworm"
+
+
+- name: Install GlusterFS on Debian 12 from bookworm-backports
+  ansible.builtin.apt:
+    name: "{{ gluster_packages }}"
+    state: present
+    update_cache: true
+    default_release: "bookworm-backports"
+  when:
+    - ansible_facts.os_family == "Debian"
+    - ansible_facts.distribution | lower == "debian"
+    - ansible_facts.distribution_release | lower == "bookworm"
+
+- name: Ensure GlusterFS service is enabled and started
+  ansible.builtin.systemd:
+    name: glusterd
+    enabled: true
+    state: started

@@ -1,0 +1,6 @@
+---
+hostname_map:
+  node0: vm-node0
+  node1: vm-node1
+  node2: vm-node2
+  node3: vm-node3

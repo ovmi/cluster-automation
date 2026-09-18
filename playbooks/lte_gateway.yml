@@ -1,0 +1,49 @@
+---
+- name: Resolve all nodes within the cluster
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    target_group: nwk_group
+
+  pre_tasks:
+    - name: Validate LTE mode
+      ansible.builtin.assert:
+        that:
+          - lte_mode in ['ecm', 'qmi']
+        fail_msg: "lte_mode must be either 'ecm' or 'qmi'."
+      when: lte_mode is defined
+
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+
+    - name: Add resolved nodes to gluster targets group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: "{{ target_group }}"
+      loop: "{{ resolved_hosts }}"
+
+    - name: Derive hosts from logical node ids
+      ansible.builtin.set_fact:
+        lte_bridge_host: "{{ node_host_map[lte_bridge_node] }}"
+      run_once: true
+
+- name: Configure LTE routing and NAT on cluster
+  hosts: nwk_group
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Import derived facts from localhost
+      ansible.builtin.set_fact:
+        lte_bridge_host: "{{ hostvars['localhost'].lte_bridge_host }}"
+
+  roles:
+    - role: lte_gateway
+
+# Configure network routing and NAT for LTE connectivity on rpi-node3.
+# Example command line to run this playbook:
+# ansible-playbook playbooks/lte_gateway.yml -e nodes=node0,node3 [ -e debug=true ]

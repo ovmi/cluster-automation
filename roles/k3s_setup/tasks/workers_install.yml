@@ -1,0 +1,65 @@
+---
+- name: Detect if root is NFS
+  ansible.builtin.command: findmnt -no FSTYPE /
+  register: root_fstype
+  changed_when: false
+
+- name: Update apt package cache
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Upgrade apt packages (not on NFS-root)
+  ansible.builtin.apt:
+    upgrade: full
+  when: root_fstype.stdout.strip() != "nfs"
+
+- name: Get k3s token from control node
+  ansible.builtin.slurp:
+    src: "{{ k3s_token_path }}"
+  delegate_to: "{{ k3s_control_node }}"
+  register: k3s_token_raw
+
+- name: Decode k3s token
+  ansible.builtin.set_fact:
+    k3s_token: "{{ k3s_token_raw.content | b64decode | trim }}"
+
+- name: Ensure /etc/rancher/k3s config directory exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Configure k3s-agent to use native snapshotter
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: |
+      snapshotter: native
+    mode: "0644"
+    owner: root
+    group: root
+
+- name: Download k3s install script
+  ansible.builtin.get_url:
+    url: "{{ k3s_installer_url }}"
+    dest: /tmp/get-k3s.sh
+    mode: '0755'
+
+- name: Run k3s installer to join cluster
+  ansible.builtin.command: >
+    sh /tmp/get-k3s.sh
+  environment:
+    K3S_URL: "https://{{ hostvars[k3s_control_node].ansible_host }}:{{ k3s_api_port }}"
+    K3S_TOKEN: "{{ k3s_token }}"
+  args:
+    creates: /usr/local/bin/k3s-agent
+  register: k3s_install
+  changed_when: k3s_install.rc == 0
+  failed_when: k3s_install.rc != 0
+
+- name: Enable and start k3s-agent service
+  ansible.builtin.systemd:
+    name: k3s-agent
+    enabled: true
+    state: started

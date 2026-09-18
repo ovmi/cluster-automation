@@ -1,0 +1,24 @@
+---
+- name: Ensure NVMe partitioning dependencies are installed
+  ansible.builtin.package:
+    name:
+      - gdisk        # provides sgdisk
+      - parted
+      - e2fsprogs    # mkfs.ext4, e2label
+      - dosfstools   # mkfs.vfat, fatlabel
+    state: present
+
+- name: Transfer NVMe formatter script to control node
+  ansible.builtin.copy:
+    src: nvme_format.sh
+    dest: /usr/local/sbin/nvme_format.sh
+    mode: "0755"
+
+- name: Create partitions and mkfs for all nodes
+  ansible.builtin.command: >
+    /usr/local/sbin/nvme_format.sh
+    --device {{ nvme_device }}
+    --format {{ 'yes' if nvme_format | bool else 'no' }}
+  register: format
+  changed_when: format.rc == 0 and nvme_format | bool
+  become: true

@@ -1,0 +1,95 @@
+---
+- name: Ensure rpi-eeprom tools present
+  ansible.builtin.package:
+    name: rpi-eeprom
+    state: present
+
+- name: Export existing EEPROM config
+  ansible.builtin.command: rpi-eeprom-config --out /tmp/bootconf.txt
+  changed_when: false
+
+- name: Prepare a working copy based on exported config
+  ansible.builtin.copy:
+    src: /tmp/bootconf.txt
+    dest: /tmp/bootconf_update.txt
+    remote_src: true
+    mode: '0644'
+  changed_when: false
+
+- name: Update BOOT_ORDER line in update file
+  ansible.builtin.lineinfile:
+    path: /tmp/bootconf_update.txt
+    regexp: '^BOOT_ORDER='
+    line: "BOOT_ORDER={{ boot_order }}"
+    create: true
+    mode: '0644'
+  when: boot_order is defined
+
+- name: Update EEPROM parameters for mode {{ boot_mode_param }}
+  ansible.builtin.lineinfile:
+    path: /tmp/bootconf_update.txt
+    regexp: "^{{ item.key }}="
+    line: >-
+      {{ item.key }}={{
+        (inventory_hostname ~ '/' if item.key == 'TFTP_PREFIX_STR' else item.value)
+      }}
+    state: present
+    create: true
+    mode: '0644'
+  loop: "{{ (boot_params[boot_mode_param] | default({})) | dict2items }}"
+  when: boot_mode_param == 'net_prio'
+
+- name: Compare files to see if update is required
+  ansible.builtin.command: diff -u /tmp/bootconf.txt /tmp/bootconf_update.txt
+  register: update_diff
+  changed_when: false
+  failed_when: update_diff.rc not in [0,1]
+
+- name: Drop dentry/inode caches before touching /boot/firmware (stale NFS entries)
+  ansible.builtin.shell: sync; echo 2 > /proc/sys/vm/drop_caches
+  changed_when: false
+  when: update_diff.rc == 1
+
+- name: Clear any stale staged EEPROM update
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /boot/firmware/pieeprom.upd
+    - /boot/firmware/pieeprom.sig
+    - /boot/firmware/pieeprom.bin
+    - /boot/firmware/recovery.bin
+    - /boot/firmware/vl805.bin
+    - /boot/firmware/vl805.sig
+  when: update_diff.rc == 1
+
+- name: Apply EEPROM update
+  ansible.builtin.command: >
+    rpi-eeprom-config --apply /tmp/bootconf_update.txt
+  register: eeprom_apply
+  changed_when: >
+    eeprom_apply.stdout is search("UPDATE SUCCESSFUL")
+    or eeprom_apply.stdout is search("EEPROM updates pending")
+    or eeprom_apply.stdout is search("CREATED UPDATE")
+  failed_when: eeprom_apply.rc != 0
+  when: update_diff.rc == 1
+
+- name: Debug EEPROM apply result
+  ansible.builtin.debug:
+    msg: |
+      Host: {{ inventory_hostname }}
+      RC: {{ (eeprom_apply | default({})).rc | default('skipped') }}
+      STDOUT:
+      {{ eeprom_apply.stdout | default('<empty>') }}
+      STDERR:
+      {{ eeprom_apply.stderr | default('<empty>') }}
+  when:
+    - eeprom_apply is defined
+    - debug | default(false)
+
+- name: Mark reboot required
+  ansible.builtin.set_fact:
+    reboot_required: true
+  when:
+    - eeprom_apply is defined
+    - eeprom_apply.changed

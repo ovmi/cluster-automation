@@ -1,0 +1,60 @@
+---
+- name: Resolve power manager targets
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    target_group: power_manager_targets
+
+  pre_tasks:
+    - name: Validate mode parameter
+      ansible.builtin.assert:
+        that:
+          - mode in ['reboot', 'shutdown']
+        fail_msg: "Invalid mode parameter. Must be one of: reboot, shutdown."
+
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+
+    - name: Add resolved nodes to power_manager_targets group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: "{{ target_group }}"
+      loop: "{{ resolved_hosts }}"
+
+- name: Cluster Power Manager
+  hosts: power_manager_targets
+  become: true
+  gather_facts: true
+  run_once: true
+
+  vars:
+    mode: "{{ mode | default('reboot') }}"
+
+  pre_tasks:
+    - name: Import derived node facts from localhost
+      ansible.builtin.set_fact:
+        pm_resolved_hosts: "{{ hostvars['localhost'].resolved_hosts }}"
+        pm_nodes_list: "{{ hostvars['localhost'].nodes_list }}"
+        pm_node_host_map: "{{ hostvars['localhost'].node_host_map }}"
+
+  tasks:
+    - name: Shutdown cluster nodes
+      ansible.builtin.include_role:
+        name: cluster_shutdown
+      when: mode == 'shutdown'
+
+    - name: Reboot cluster nodes
+      ansible.builtin.include_role:
+        name: cluster_reboot
+      when: mode == 'reboot'
+
+  # Power manage cluster nodes.
+  # Example command line to run this playbook:
+  # Reboot cluster nodes.
+  # ansible-playbook playbooks/cluster_power_manager.yml -e nodes=node0,node1 -e mode=reboot [-e debug=true]
+  # Shutdown cluster nodes.
+  # ansible-playbook playbooks/cluster_power_manager.yml -e nodes=node1 -e mode=shutdown [-e debug=true]

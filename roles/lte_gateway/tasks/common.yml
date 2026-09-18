@@ -1,0 +1,33 @@
+---
+- name: Uninstall ModemManager
+  ansible.builtin.apt:
+    name: modemmanager
+    state: absent
+    purge: true
+
+- name: Install LTE support packages
+  ansible.builtin.apt:
+    name:
+      - usbutils
+      - iproute2
+      - iputils-ping
+      - iptables
+    state: present
+    update_cache: true
+
+- name: Check if Quectel modem is connected
+  ansible.builtin.command: lsusb
+  register: lsusb_output
+  changed_when: false
+
+- name: Determine whether the LTE modem is present
+  ansible.builtin.set_fact:
+    lte_modem_present: "{{ lte_modem_usb_id in lsusb_output.stdout }}"
+
+- name: Note that no LTE modem was detected (skipping LTE gateway setup)
+  ansible.builtin.debug:
+    msg: >-
+      Quectel modem ({{ lte_modem_usb_id }}) not detected via lsusb on
+      {{ inventory_hostname }} -- skipping LTE/failover configuration for
+      this host. Not a failure: re-run this role once a modem is present.
+  when: not lte_modem_present

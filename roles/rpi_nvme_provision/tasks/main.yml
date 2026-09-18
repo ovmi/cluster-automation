@@ -1,0 +1,12 @@
+---
+- name: Stop services before NVMe provisioning
+  ansible.builtin.import_tasks: stop_services.yml
+
+- name: Format NVMe device
+  ansible.builtin.import_tasks: nvme_format.yml
+
+- name: Include flashing tasks
+  ansible.builtin.import_tasks: nvme_provision.yml
+
+- name: Start services after NVMe provisioning
+  ansible.builtin.import_tasks: start_services.yml

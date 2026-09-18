@@ -1,0 +1,19 @@
+---
+- name: Wait for Grafana deployment to become available
+  ansible.builtin.command: >-
+    kubectl rollout status
+    --namespace {{ monitoring_namespace }}
+    deployment/monitoring-grafana
+    --timeout=300s
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  changed_when: false
+
+- name: Add Grafana hostname to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars[k3s_control_node].ansible_host }} {{ grafana_hostname }}"
+    state: present
+  become: true
+  delegate_to: localhost
+  run_once: true

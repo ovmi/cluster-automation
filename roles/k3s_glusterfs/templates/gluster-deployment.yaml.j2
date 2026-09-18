@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ gluster_deployment_name }}
+  namespace: {{ gluster_namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ gluster_deployment_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ gluster_deployment_name }}
+    spec:
+      containers:
+        - name: test-container
+          image: busybox
+          command: ["sh", "-c", "echo Hello from GlusterFS > /data/hello.txt && sleep 3600"]
+          volumeMounts:
+            - name: gluster-volume
+              mountPath: /data
+      volumes:
+        - name: gluster-volume
+          persistentVolumeClaim:
+            claimName: {{ gluster_pvc_name }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - {{ gluster_node_name }}

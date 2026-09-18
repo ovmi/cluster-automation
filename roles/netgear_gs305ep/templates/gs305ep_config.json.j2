@@ -1,0 +1,30 @@
+{
+  "address": "{{ switch_ip }}",
+  "password": "{{ switch_password }}",
+  "ports": [
+    {# Build a list of nodes from control + workers with their port number #}
+    {% set nodes = [] %}
+    {% for g in ['control', 'workers'] %}
+      {% for h in groups.get(g, []) %}
+        {% set _ = nodes.append({
+          'name': h,
+          'port': (hostvars[h].switch_port | default(0) | int)
+        }) %}
+      {% endfor %}
+    {% endfor %}
+
+    {# Sort by port and render #}
+    {% for item in nodes | selectattr('port') | sort(attribute='port') %}
+    {
+      "port": {{ item.port }},
+      "ip": "{{ hostvars[item.name].ansible_host }}",
+      "mac": "{{ (hostvars[item.name].mac | default('') | upper | replace('-', ':') | trim) }}",
+      "name": "{{ item.name }}",
+      "speed": "{{ hostvars[item.name].speed | default(gs305ep_port_defaults.speed) }}",
+      "flow_control": "{{ hostvars[item.name].flow_control | default(gs305ep_port_defaults.flow_control) }}",
+      "mode": "{{ hostvars[item.name].mode | default(gs305ep_port_defaults.mode) }}",
+      "power": "{{ hostvars[item.name].power | default(gs305ep_port_defaults.power) }}"
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}

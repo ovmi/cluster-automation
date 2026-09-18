@@ -1,0 +1,29 @@
+- name: Ensure node_exporter group exists
+  ansible.builtin.group:
+    name: "{{ node_exporter_group }}"
+    state: present
+    system: true
+
+- name: Ensure node_exporter user exists
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Ensure textfile_collector directory exists
+  ansible.builtin.file:
+    path: "{{ node_exporter_collector }}"
+    state: directory
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: "{{ node_exporter_mode }}"
+
+- name: Ensure temperature.prom exists with correct ownership and permissions
+  ansible.builtin.file:
+    path: "{{ node_exporter_collector }}/temperature.prom"
+    state: touch
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: '0644'

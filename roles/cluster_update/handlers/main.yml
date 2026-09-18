@@ -1,0 +1,7 @@
+---
+- name: Note that eth0 NetworkManager profile needs a reboot
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}: Created a static-DNS profile
+      for eth0; changes will apply on the next reboot to avoid
+      risking an interface drop.

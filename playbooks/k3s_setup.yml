@@ -1,0 +1,53 @@
+---
+- name: Resolve K3S installation targets
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    target_group: k3s_targets
+
+  pre_tasks:
+    - name: Validate k3s_mode command parameter
+      ansible.builtin.assert:
+        that:
+          - k3s_mode in ['install', 'remove']
+        fail_msg: "Invalid k3s_mode={{ k3s_mode }}"
+
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+
+    - name: Add resolved nodes to k3s_targets group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: "{{ target_group }}"
+      loop: "{{ resolved_hosts }}"
+
+    - name: Derive K3S hosts from logical node ids
+      ansible.builtin.set_fact:
+        k3s_control_node: "{{ hostname_map[k3s_control] }}"
+        k3s_worker_nodes: "{{ k3s_workers | map('extract', hostname_map) | list }}"
+      run_once: true
+
+- name: Install/unintstall K3S cluster
+  hosts: k3s_targets
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Import derived K3S facts from localhost
+      ansible.builtin.set_fact:
+        k3s_control_node: "{{ hostvars['localhost'].k3s_control_node }}"
+        k3s_worker_nodes: "{{ hostvars['localhost'].k3s_worker_nodes }}"
+
+  roles:
+    - k3s_setup
+
+# Install and configure K3S on specified cluster nodes.
+# Example command line to run this playbook:
+# Install K3S on the specified nodes:
+# ansible-playbook playbooks/k3s_setup.yml -e nodes=node0,node1 -e k3s_mode=install [-e debug=true]
+# Remove K3S from the specified nodes:
+# ansible-playbook playbooks/k3s_setup.yml -e nodes=node1 -e k3s_mode=remove [-e debug=true]

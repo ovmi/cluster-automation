@@ -1,0 +1,75 @@
+---
+- name: Ensure NVMe flashing dependencies are installed
+  ansible.builtin.package:
+    name:
+      - xz-utils        # xz
+      - gzip            # gzip
+      - util-linux      # losetup, mount
+      - e2fsprogs       # e2fsck, resize2fs
+      - curl            # download (primary)
+      - wget            # download (fallback)
+      - coreutils       # dd (usually present)
+    state: present
+
+- name: Transfer NVMe flash script
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/usr/local/sbin/{{ item }}"
+    mode: "0755"
+  loop:
+    - nvme_provision.sh
+    - patch_partitions.sh
+
+- name: Debug nvme_provision parameters
+  ansible.builtin.debug:
+    msg:
+      - "Command:"
+      - "/usr/local/sbin/nvme_provision.sh"
+      - "  --node {{ item }}"
+      - "  --slot {{ slot_param }}"
+      - "  --image {{ images[item] }}"
+      - "  --cache {{ image_cache_dir }}"
+      - "  --device {{ nvme_device }}"
+  loop: "{{ nodes_list }}"
+
+- name: Flash images to NVMe partitions
+  ansible.builtin.command: >
+    /usr/local/sbin/nvme_provision.sh
+    --node "{{ item }}"
+    --slot "{{ slot_param }}"
+    --image "{{ images[item] }}"
+    --cache "{{ image_cache_dir }}"
+    --device "{{ nvme_device }}"
+  loop: "{{ nodes_list }}"
+  register: provision_result
+  changed_when: provision_result.rc == 0
+  become: true
+
+- name: Debug patch_partitions parameters
+  ansible.builtin.debug:
+    msg:
+      - "Command:"
+      - "/usr/local/sbin/patch_partitions.sh"
+      - "  --node {{ item }}"
+      - "  --slot {{ slot_param }}"
+      - "  --mode {{ 'nvme' if item == 'node0' else 'nfs' }}"
+      - "  --boot {{ nvme_device }}p{{ nvme_map[item][slot_param].boot }}"
+      - "  --root {{ nvme_device }}p{{ nvme_map[item][slot_param].root }}"
+      - "  --nfs-server {{ hostvars[hostname_map['node0']].ansible_host }}"
+      - "  --nfs-base {{ nfs_root_dir | default('/srv/nfs') }}"
+  loop: "{{ nodes_list }}"
+
+- name: Patch bootfs/rootfs for node modes
+  ansible.builtin.command: >
+    /usr/local/sbin/patch_partitions.sh
+    --node "{{ item }}"
+    --slot "{{ slot_param }}"
+    --mode "{{ 'nvme' if item == 'node0' else 'nfs' }}"
+    --boot "{{ nvme_device }}p{{ nvme_map[item][slot_param].boot }}"
+    --root "{{ nvme_device }}p{{ nvme_map[item][slot_param].root }}"
+    --nfs-server "{{ hostvars[hostname_map['node0']].ansible_host }}"
+    --nfs-base "{{ nfs_root_dir | default('/srv/nfs') }}"
+  loop: "{{ nodes_list }}"
+  register: patch_result
+  changed_when: patch_result.rc == 0
+  become: true

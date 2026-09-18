@@ -1,0 +1,28 @@
+---
+- name: Gather memory and mount facts
+  ansible.builtin.setup:
+    gather_subset:
+      - "!all"
+      - "!min"
+      - hardware
+      - mounts
+
+- name: Find root filesystem mount facts
+  ansible.builtin.set_fact:
+    root_mount: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', '/') | first }}"
+
+- name: Build resource snapshot
+  ansible.builtin.set_fact:
+    resource_snapshot:
+      memory_used_percent: "{{ ((1 - (ansible_facts.memfree_mb / ansible_facts.memtotal_mb)) * 100) | round(1) }}"
+      memory_total_mb: "{{ ansible_facts.memtotal_mb }}"
+      disk_used_percent: "{{ ((1 - (root_mount.size_available / root_mount.size_total)) * 100) | round(1) }}"
+      disk_free_gb: "{{ (root_mount.size_available / 1024 / 1024 / 1024) | round(2) }}"
+
+- name: Display memory usage
+  ansible.builtin.debug:
+    msg: "\e[{{ '31' if resource_snapshot.memory_used_percent | float >= mem_usage_threshold else '32' }}mMEMORY {{ resource_snapshot.memory_used_percent }}% used ({{ resource_snapshot.memory_total_mb }} MB total)\e[0m"
+
+- name: Display disk usage
+  ansible.builtin.debug:
+    msg: "\e[{{ '31' if resource_snapshot.disk_used_percent | float >= disk_usage_threshold else '32' }}mDISK {{ resource_snapshot.disk_used_percent }}% used ({{ resource_snapshot.disk_free_gb }} GB free)\e[0m"

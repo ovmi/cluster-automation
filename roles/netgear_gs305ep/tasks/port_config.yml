@@ -1,0 +1,64 @@
+---
+- name: Set ports name
+  ansible.builtin.command:
+    argv:
+      - "{{ ntgrrc_bin }}"
+      - "port"
+      - "set"
+      - "--address"
+      - "{{ gs305ep_config.address }}"
+      - "--port"
+      - "{{ item.port | string }}"
+      - "--name"
+      - "{{ item.name }}"
+      - "--token-dir"
+      - "{{ ntgrrc_tmpdir.path }}"
+  loop: "{{ gs305ep_ports }}"
+  loop_control:
+    label: "set name '{{ item.name }}' on port {{ item.port }}"
+  when: item.name is defined
+  register: port_name_batch
+  changed_when: port_name_batch.rc == 0
+  failed_when: port_name_batch.rc != 0
+
+- name: Set ports speed
+  ansible.builtin.command:
+    argv:
+      - "{{ ntgrrc_bin }}"
+      - "port"
+      - "set"
+      - "--address"
+      - "{{ gs305ep_config.address }}"
+      - "--port"
+      - "{{ item.port | string }}"
+      - "--speed"
+      - "{{ item.speed }}"
+      - "--token-dir"
+      - "{{ ntgrrc_tmpdir.path }}"
+  loop: "{{ gs305ep_ports }}"
+  loop_control:
+    label: "set speed {{ item.speed }} on port {{ item.port }}"
+  register: port_speed_batch_control
+  changed_when: port_speed_batch_control.rc == 0
+  failed_when: port_speed_batch_control.rc != 0
+
+- name: Set ports flow control
+  ansible.builtin.command:
+    argv:
+      - "{{ ntgrrc_bin }}"
+      - "port"
+      - "set"
+      - "--address"
+      - "{{ gs305ep_config.address }}"
+      - "--port"
+      - "{{ item.port | string }}"
+      - "--flow-control"
+      - "{{ item.flow_control }}"
+      - "--token-dir"
+      - "{{ ntgrrc_tmpdir.path }}"
+  loop: "{{ gs305ep_ports }}"
+  loop_control:
+    label: "set flow control {{ item.flow_control }} on port {{ item.port }}"
+  register: port_flow_control_batch_control
+  changed_when: port_flow_control_batch_control.rc == 0
+  failed_when: port_flow_control_batch_control.rc != 0

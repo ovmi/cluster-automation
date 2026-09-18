@@ -1,0 +1,11 @@
+---
+profile: production
+skip_list:
+  - yaml[line-length]
+warn_list:
+  - no-changed-when
+  - jinja[spacing]
+enable_list:
+  - fqcn[canonical]
+parseable: true
+verbosity: 1

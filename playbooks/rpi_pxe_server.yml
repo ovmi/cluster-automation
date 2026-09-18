@@ -1,0 +1,33 @@
+---
+- name: Install PXE server on controller
+  hosts: control
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+    - name: Check parameters for NVMe slot
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: slot_check.yml
+    - name: Set the TFTP and NFS server IPs for PXE boot configuration
+      ansible.builtin.set_fact:
+        tftp_server: "{{ hostvars[hostname_map[tftp_server]].ansible_host }}"  # TFTP server IP (node0)
+        nfs_server: "{{ hostvars[hostname_map[nfs_server]].ansible_host }}"   # NFS server IP (node0)
+  roles:
+    - rpi_pxe_server
+
+# Set up PXE boot server (NFS, TFTP, DNS) on control node.
+#
+# Example command line to run this playbook:
+# Install PXE server and set up NFS shares for nodes given as parameters:
+# ansible-playbook playbooks/rpi_pxe_server.yml -e nodes=node0,node1 -e slot=a -e nfs_action=install [ -e debug=true ]
+#
+# Add/mount NFS shares on nodes given as parameters:
+# ansible-playbook playbooks/rpi_pxe_server.yml -e nodes=node0,node1 -e slot=a -e nfs_action=add [ -e debug=true ]
+#
+# Clean/uninstall NFS shares on nodes given as parameters:
+# ansible-playbook playbooks/rpi_pxe_server.yml -e nodes=node0,node1 -e slot=a -e nfs_action=remove [ -e debug=true ]

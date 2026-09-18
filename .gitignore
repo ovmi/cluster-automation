@@ -1,0 +1,16 @@
+# Python virtualenv
+.venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Editor
+.vscode/
+
+# Generated switch config -- rendered from vault-sourced switch_password,
+# contains the real device credential in plaintext (see roles/netgear_gs305ep)
+roles/netgear_gs305ep/build/*.json
+
+# Runtime cluster-rebuild-monitor logs (see scripts/rebuild_debug/rebuild_monitoring.md)
+scripts/rebuild_debug/logs/

@@ -1,0 +1,20 @@
+---
+- name: Add Docker repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch={{ arch_mapping[ansible_architecture] }} signed-by=/etc/apt/keyrings/docker.asc] {{ docker_repo_base }} {{ docker_repo_release }} stable"
+    state: present
+
+- name: Update package cache again (picks up the Docker repo just added)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Upgrade packages again (not on NFS-root)
+  ansible.builtin.apt:
+    upgrade: dist
+  when: root_fstype.stdout.strip() != "nfs"
+
+- name: Install Docker CE
+  ansible.builtin.apt:
+    name: docker-ce
+    state: present

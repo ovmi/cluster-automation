@@ -1,0 +1,109 @@
+---
+- name: Stop NFS server
+  ansible.builtin.systemd:
+    name: nfs-kernel-server
+    state: stopped
+    enabled: false
+
+- name: Disable all NFS exports
+  ansible.builtin.command: exportfs -au
+  changed_when: true
+
+- name: Ensure NFS per-node directories exist
+  ansible.builtin.file:
+    path: "{{ nfs_root_dir }}/{{ item.host }}"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  loop_control:
+    label: "{{ item.host }}"
+
+- name: Ensure /boot/firmware exists inside rootfs
+  ansible.builtin.file:
+    path: "{{ item.root_mnt }}/boot/firmware"
+    state: directory
+    mode: '0755'
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  loop_control:
+    label: "{{ item.node }} -> {{ item.root_mnt }}/boot/firmware"
+
+- name: Ensure TFTP per-node directories exist
+  ansible.builtin.file:
+    path: "{{ tftp_dir }}/{{ item.host }}"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  loop_control:
+    label: "{{ item.host }}"
+
+- name: Mount per-node bootfs under TFTP base
+  ansible.posix.mount:
+    path: "{{ item.boot_mnt }}"
+    src: "{{ item.boot_dev }}"
+    fstype: "{{ item.bootfs_type }}"
+    opts: "{{ item.bootfs_opts }}"
+    state: mounted
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  loop_control:
+    label: "{{ item.node }} -> {{ item.boot_mnt }}"
+
+- name: Mount per-node rootfs partitions
+  ansible.posix.mount:
+    path: "{{ item.root_mnt }}"
+    src: "{{ item.root_dev }}"
+    fstype: "{{ item.rootfs_type }}"
+    opts: "{{ item.rootfs_opts }}"
+    state: mounted
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  loop_control:
+    label: "{{ item.node }} -> {{ item.root_mnt }}"
+
+- name: Mount per-node bootfs inside rootfs
+  ansible.posix.mount:
+    path: "{{ nfs_root_dir }}/{{ item.host }}/boot/firmware"
+    src: "{{ item.boot_dev }}"
+    fstype: "{{ item.bootfs_type }}"
+    opts: "{{ item.bootfs_opts }}"
+    state: mounted
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  loop_control:
+    label: "{{ item.node }} -> {{ nfs_root_dir }}/{{ item.host }}/boot/firmware"
+
+- name: Ensure per-node exports exist
+  ansible.builtin.lineinfile:
+    path: /etc/exports.d/cluster.exports
+    state: present
+    line: "{{ nfs_root_dir }}/{{ item.host }} {{ pxe_proxy_network }}/24(rw,no_root_squash,no_subtree_check,async,crossmnt)"
+    regexp: "^{{ nfs_root_dir }}/{{ item.host }}"
+    backup: true
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+
+- name: Install openssh-server in NFS rootfs
+  become: true
+  ansible.builtin.command:
+    cmd: chroot {{ item.root_mnt }} apt-get install -y openssh-server
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  register: openssh_install
+  changed_when: openssh_install.rc == 0
+
+- name: Enable ssh service in NFS rootfs
+  become: true
+  ansible.builtin.command:
+    cmd: chroot {{ item.root_mnt }} systemctl enable ssh
+  loop: "{{ pxe_nodes | rejectattr('node', 'equalto', pxe_control_node) | list }}"
+  register: ssh_enable
+  changed_when: ssh_enable.rc == 0
+
+- name: Reload exports after removal
+  ansible.builtin.command: exportfs -rav
+  changed_when: true
+
+- name: Start NFS server
+  ansible.builtin.systemd:
+    name: nfs-kernel-server
+    state: started
+    enabled: true

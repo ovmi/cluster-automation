@@ -1,0 +1,13 @@
+---
+arch_mapping:
+  x86_64: "amd64"
+  aarch64: "arm64"
+
+docker_gpg_key_url: "https://download.docker.com/linux/{{ ansible_os_family | lower }}/gpg"
+docker_repo_url: "https://download.docker.com/linux/{{ ansible_os_family | lower }}"
+
+docker_post_install_tasks: []     # Additional tasks to run after Docker installation
+docker_mode: "none"               # Options: none, install, remove
+
+docker_user: "{{ ansible_user }}" # User to add to docker group after installation
+docker_group: "docker"            # Docker group name

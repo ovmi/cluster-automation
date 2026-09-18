@@ -1,0 +1,38 @@
+---
+- name: Ensure TFTP server (tftpd-hpa) is installed
+  ansible.builtin.apt:
+    name: tftpd-hpa
+    state: present
+    update_cache: true
+
+- name: Unmask tftpd-hpa
+  ansible.builtin.systemd:
+    name: tftpd-hpa
+    masked: false
+
+- name: Configure tftpd-hpa defaults
+  ansible.builtin.copy:
+    dest: /etc/default/tftpd-hpa
+    content: |
+      TFTP_USERNAME="tftp"
+      TFTP_DIRECTORY="{{ tftp_dir }}"
+      TFTP_ADDRESS="0.0.0.0:69"
+      TFTP_OPTIONS="--secure --verbose"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart tftpd-hpa
+
+- name: Ensure TFTP root directory exists
+  ansible.builtin.file:
+    path: "{{ tftp_dir }}"
+    state: directory
+    owner: tftp
+    group: tftp
+    mode: '0755'
+
+- name: Enable and start tftpd-hpa
+  ansible.builtin.systemd:
+    name: tftpd-hpa
+    enabled: true
+    state: started

@@ -1,0 +1,6 @@
+---
+hostname_map:
+  node0: rpi-node0
+  node1: rpi-node1
+  node2: rpi-node2
+  node3: rpi-node3

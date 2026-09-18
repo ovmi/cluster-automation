@@ -1,0 +1,30 @@
+---
+- name: Resolve update system targets
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  pre_tasks:
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+
+    - name: Add resolved nodes to update targets group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: cluster_update_targets
+      loop: "{{ resolved_hosts }}"
+
+- name: System update on selected target nodes
+  hosts: cluster_update_targets
+  gather_facts: true
+  become: true
+  serial: 1
+
+  roles:
+    - cluster_update
+
+  # Apply system-wide configuration changes (packages, services, dotfiles) to nodes.
+  # Example command line to run this playbook:
+  # ansible-playbook playbooks/cluster_update.yml -e nodes=node0,node1 [-e debug=true]

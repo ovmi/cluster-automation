@@ -1,0 +1,17 @@
+---
+- name: Install monitoring tools on all nodes
+  ansible.builtin.include_tasks: connectivity.yml
+
+- name: Check resource usage
+  ansible.builtin.include_tasks: resources.yml
+
+- name: Check service health
+  ansible.builtin.include_tasks: services.yml
+
+- name: Start iperf3 server on control node
+  ansible.builtin.include_tasks: server.yml
+  when: inventory_hostname == iperf_server_host
+
+- name: Run iperf3 client benchmark on worker nodes
+  ansible.builtin.include_tasks: client.yml
+  when: inventory_hostname != iperf_server_host

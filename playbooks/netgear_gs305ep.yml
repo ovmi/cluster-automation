@@ -1,0 +1,40 @@
+---
+- name: Resolve switch control targets
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  pre_tasks:
+    - name: Check parameters for valid nodes
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: node_check.yml
+
+    - name: Add resolved nodes to switch_ports_targets group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: switch_port_targets
+      loop: "{{ resolved_hosts }}"
+
+    - name: Set group variable for switch_port_targets
+      ansible.builtin.set_fact:
+        switch_port_targets: "{{ groups['switch_port_targets'] | default([]) }}"
+
+  roles:
+    - netgear_gs305ep
+
+  post_tasks:
+    - name: Cleanup temporary files created by ntgrrc
+      ansible.builtin.file:
+        path: "{{ ntgrrc_tmpdir.path }}"
+        state: absent
+
+  # Control switch ports (enable/disable PoE, configure ports, etc.).
+  # Example command to enable PoE on ports 1 and 2:
+  # ansible-playbook playbooks/netgear_gs305ep.yml -e nodes=node1,node2 -e poe_action=enable [ -e debug=true ]
+  # Example command to disable PoE on ports 1 and 2:
+  # ansible-playbook playbooks/netgear_gs305ep.yml -e nodes=node1,node2 -e poe_action=disable [ -e debug=true ]
+  # Example command to toggle PoE on port 1:
+  # ansible-playbook playbooks/netgear_gs305ep.yml -e nodes=node1 -e poe_action=toggle [ -e debug=true]
+  # Example command to configure the port 1:
+  # ansible-playbook playbooks/netgear_gs305ep.yml -e nodes=node1 -e config=true [ -e debug=true ]
