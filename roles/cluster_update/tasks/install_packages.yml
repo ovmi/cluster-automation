@@ -106,12 +106,14 @@
 - name: Set hostname on all cluster nodes
   ansible.builtin.hostname:
     name: "{{ inventory_hostname }}"
+  when: manage_hosts | default(true) | bool
 
 - name: Ensure 127.0.1.1 maps to inventory hostname
   ansible.builtin.lineinfile:
     path: /etc/hosts
     regexp: "^127\\.0\\.1\\.1\\s+"
     line: "127.0.1.1 {{ inventory_hostname }}"
+  when: manage_hosts | default(true) | bool
 
 - name: Build /etc/hosts entries from cluster_update_targets
   ansible.builtin.lineinfile:
@@ -121,6 +123,7 @@
   loop: "{{ groups['cluster_update_targets'] | default([]) }}"
   loop_control:
     loop_var: target
+  when: manage_hosts | default(true) | bool
   vars:
     host_name: "{{ target }}"
     host_ip: >-

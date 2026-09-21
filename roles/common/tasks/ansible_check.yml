@@ -36,6 +36,7 @@
   register: crypto_list
   changed_when: false
   failed_when: false
+  check_mode: false
   when: is_ansible_2_10_plus
 
 - name: Mark community.crypto presence
@@ -49,6 +50,7 @@
   register: kubernetes_list
   changed_when: false
   failed_when: false
+  check_mode: false
   when: is_ansible_2_10_plus
 
 - name: Mark kubernetes.core presence

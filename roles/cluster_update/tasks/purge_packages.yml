@@ -1,11 +1,20 @@
 ---
+# LXC guests have no initramfs-tools, so the file may not exist.
+- name: Check for initramfs.conf
+  ansible.builtin.stat:
+    path: /etc/initramfs-tools/initramfs.conf
+  register: initramfs_conf
+  when: ansible_facts.os_family == "Debian"
+
 - name: Force initramfs MODULES=most (RPi OS / Debian)
   ansible.builtin.lineinfile:
     path: /etc/initramfs-tools/initramfs.conf
     regexp: '^MODULES='
     line: 'MODULES=most'
     create: false
-  when: ansible_facts.os_family == "Debian"
+  when:
+    - ansible_facts.os_family == "Debian"
+    - initramfs_conf.stat.exists
 
 - name: Remove initramfs driver-policy override (causes MODULES=dep)
   ansible.builtin.file:

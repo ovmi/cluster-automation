@@ -6,7 +6,7 @@ Applies a baseline system configuration to cluster nodes: removes unwanted packa
 
 | Task file | Description |
 |-----------|-------------|
-| `purge_packages.yml` | Removes packages that are not needed on a headless cluster node (e.g. GUI tools, `snapd`) |
+| `purge_packages.yml` | Forces initramfs `MODULES=most` on Debian-family hosts that have `/etc/initramfs-tools/initramfs.conf` (skipped on LXC guests, which have none); removes packages that are not needed on a headless cluster node |
 | `install_packages.yml` | Runs `apt dist-upgrade` (skipped on NFS-root nodes, see below), installs `required_packages`, deploys `.vimrc` from `files/vimrc` to each node user's home directory |
 
 ### `dist-upgrade` is skipped on NFS-root nodes
@@ -30,6 +30,7 @@ Raspberry Pi OS netboot workers (node2/node3) get their IP from the kernel's ear
 | `required_packages` | `[vim, net-tools, python3, python3-pip]` | Packages installed on every node |
 | `vimrc_src` | `vimrc` | Source file name under `roles/cluster_update/files/` |
 | `vimrc_path` | `/home/{{ ansible_user }}/.vimrc` | Destination path on the node |
+| `manage_hosts` | `true` (unset) | Set `false` on a host to skip setting its hostname and editing `/etc/hosts` |
 | `fallback_nameserver` | `8.8.8.8` | Nameserver used both as the plain `/etc/resolv.conf` fallback line and as the secondary DNS in the NetworkManager keyfile above |
 
 ## Usage
