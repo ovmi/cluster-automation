@@ -1,0 +1,7 @@
+---
+mon_control: pve                          # node to run monitoring server (Prometheus, Grafana)
+mon_workers: [ubuntu, omv, jellyfin]      # list of workernodes to run monitoring clients (node exporters, iperf3 clients)
+
+ansible_python_interpreter: /usr/bin/python3
+ansible_ssh_private_key_file: ~/.ssh/id_ed25519_cluster
+vimrc_path: "{{ '/root' if ansible_user == 'root' else '/home/' ~ ansible_user }}/.vimrc"

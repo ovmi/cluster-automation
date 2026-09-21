@@ -14,6 +14,7 @@ Full documentation lives in [`docs/`](docs/):
 | [docs/vault.md](docs/vault.md) | Secrets management setup |
 | [docs/provisioning.md](docs/provisioning.md) | Raspberry Pi from-scratch setup sequence, maintenance, recovery |
 | [docs/x86_linux.md](docs/x86_linux.md) | x86 Linux (VM/container) target: prerequisites and playbook sequence |
+| [docs/pve_linux.md](docs/pve_linux.md) | Proxmox host + guests: basic SSH/update tasks only (no Docker/K3s) |
 | [docs/commands.md](docs/commands.md) | Full playbook command reference |
 | [docs/monitoring.md](docs/monitoring.md) | Prometheus + Grafana architecture |
 | [docs/development.md](docs/development.md) | Dev tools, required collections, roadmap |

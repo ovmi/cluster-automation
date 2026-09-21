@@ -23,6 +23,7 @@
 - `inventories/rpi_linux/group_vars/all/vault.yml` — encrypted secrets. See [vault.md](vault.md).
 - `inventories/rpi_linux/host_vars/` — per-host overrides.
 - `inventories/x86_linux/` — second target: a four-node x86 Linux cluster (pre-provisioned VMs or containers — Proxmox LXC, KVM, cloud instances, etc.), same shape as `inventories/rpi_linux/` minus the Pi-only vars (no `nvme_map`, `tftp_server`, `nfs_server`, or `lte_bridge_node`). See [x86_linux.md](x86_linux.md).
+- `inventories/pve_linux/` — third target: the Proxmox VE host plus its Ubuntu/OMV/Jellyfin guests (Windows listed for reference), used only for `ssh_config` and `cluster_update`. See [pve_linux.md](pve_linux.md).
 
 ## Playbook pattern
 

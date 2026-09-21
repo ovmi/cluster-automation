@@ -1,0 +1,6 @@
+---
+hostname_map:
+  pve: pve
+  ubuntu: ubuntu
+  omv: omv
+  jellyfin: jellyfin

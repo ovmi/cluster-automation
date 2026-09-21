@@ -1,0 +1,18 @@
+[local]
+localhost ansible_connection=local ansible_host=192.168.100.200
+
+[hypervisor]
+pve ansible_connection=local ansible_host=192.168.100.200 ansible_user=root ansible_password="{{ vault_pve_password }}" ansible_become=false cluster_update_manage_hosts=false
+
+[guests]
+ubuntu ansible_connection=ssh ansible_host=192.168.100.201 ansible_user=ovmi ansible_password="{{ vault_ubuntu_password }}" ansible_become_password="{{ vault_ubuntu_password }}"
+omv ansible_connection=ssh ansible_host=192.168.100.203 ansible_user=root ansible_password="{{ vault_omv_password }}" ansible_become=false cluster_update_manage_hosts=false
+jellyfin ansible_connection=ssh ansible_host=192.168.100.204 ansible_user=root ansible_password="{{ vault_jellyfin_password }}" ansible_become=false
+
+# Windows 11 (VM 202) is listed for reference only, it is not in hostname_map
+[windows]
+win11 ansible_connection=winrm ansible_host=192.168.100.202 ansible_user=Administrator ansible_winrm_transport=ntlm ansible_winrm_server_cert_validation=ignore ansible_port=5986
+
+[cluster:children]
+hypervisor
+guests
