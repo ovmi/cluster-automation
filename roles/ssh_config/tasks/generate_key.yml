@@ -1,0 +1,20 @@
+---
+- name: Check if private key exists
+  ansible.builtin.stat:
+    path: "{{ ssh_private_key_path | expanduser }}"
+  register: ssh_key_stat
+  run_once: true
+  delegate_to: localhost
+
+- name: Generate SSH key pair if not present
+  community.crypto.openssh_keypair:
+    path: "{{ ssh_private_key_path | expanduser }}"
+    type: "{{ ssh_key_type | default('ed25519') }}"
+    # size: "{{ ssh_key_bits }}" # only used if type is rsa
+    comment: "{{ ssh_key_comment | default('raspi-cluster') }}"
+    owner: "{{ ssh_user }}"
+    group: "{{ ssh_group }}"
+    mode: '0600'
+  when: not ssh_key_stat.stat.exists
+  run_once: true
+  delegate_to: localhost

@@ -1,33 +1,13 @@
 ---
 - name: Ensure ~/.ssh exists on targets
   ansible.builtin.file:
-    path: "/home/{{ ansible_user }}/.ssh"
+    path: "{{ '/root' if hostvars[item].ansible_user == 'root' else '/home/' ~ hostvars[item].ansible_user }}/.ssh"
     state: directory
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
+    owner: "{{ hostvars[item].ansible_user }}"
+    group: "{{ hostvars[item].ansible_user }}"
     mode: "0700"
   delegate_to: "{{ item }}"
   loop: "{{ ssh_targets | default([]) }}"
-
-- name: Check if private key exists
-  ansible.builtin.stat:
-    path: "{{ ssh_private_key_path | expanduser }}"
-  register: ssh_key_stat
-  run_once: true
-  delegate_to: localhost
-
-- name: Generate SSH key pair if not present
-  community.crypto.openssh_keypair:
-    path: "{{ ssh_private_key_path | expanduser }}"
-    type: "{{ ssh_key_type | default('ed25519') }}"
-    # size: "{{ ssh_key_bits }}" # only used if type is rsa
-    comment: "{{ ssh_key_comment | default('raspi-cluster') }}"
-    owner: "{{ ssh_user }}"
-    group: "{{ ssh_group }}"
-    mode: '0600'
-  when: not ssh_key_stat.stat.exists
-  run_once: true
-  delegate_to: localhost
 
 - name: Ensure ssh drop-in directory exists
   ansible.builtin.file:
@@ -45,7 +25,7 @@
   become: true
   delegate_to: "{{ item }}"
   loop: "{{ ssh_targets | default([]) }}"
-  notify: Restart SSH service
+  register: ssh_stale_dropin
 
 # Filename must sort before cloud-init's own drop-in -- see the README's
 # "Drop-in filename ordering" section before renumbering this.
@@ -60,4 +40,13 @@
   become: true
   delegate_to: "{{ item }}"
   loop: "{{ ssh_targets | default([]) }}"
-  notify: Restart SSH service
+  register: ssh_hardening
+
+# A handler would run on the play host, not on the delegated target.
+- name: Restart SSH service on targets whose config changed
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+  become: true
+  delegate_to: "{{ item }}"
+  loop: "{{ (ssh_stale_dropin.results + ssh_hardening.results) | selectattr('changed') | map(attribute='item') | unique | list }}"

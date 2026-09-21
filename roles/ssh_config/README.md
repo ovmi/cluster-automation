@@ -9,8 +9,9 @@ Manages SSH key generation and distribution for the cluster. Supports two modes:
 | Task file | Runs when | Description |
 |-----------|-----------|-------------|
 | `cleanup.yml` | `ssh_cleanup: true` | Removes existing entries from `~/.ssh/known_hosts` for all target hosts |
-| `bootstrap.yml` | `ssh_mode == bootstrap` | Generates an ed25519 key pair if absent; uses `sshpass` + `ssh-copy-id` to push the public key to each host using the password from inventory; updates `known_hosts` via `ssh-keyscan` |
-| `config.yml` | `ssh_mode == config` | Tests key-based SSH connectivity; updates `known_hosts`; installs the public key on any host where key auth fails |
+| `generate_key.yml` | always (before `bootstrap.yml`/`config.yml`) | Generates the controller's ed25519 key pair under `~/.ssh/` if the private key is absent |
+| `bootstrap.yml` | `ssh_mode == bootstrap` | Uses `sshpass` + `ssh-copy-id` to push the public key to each host using the password from inventory; updates `known_hosts` via `ssh-keyscan` |
+| `config.yml` | `ssh_mode == config` | Tests key-based SSH connectivity; updates `known_hosts`; installs the public key on any host where key auth fails; writes the sshd drop-in and restarts `ssh` on each target whose config changed (a task delegated to the target, not a handler, since handlers run on the play host) |
 | `install_key.yml` | called from `config.yml` | Handles the actual `authorized_keys` update for a single host |
 
 The SSH target list is built from `groups[ssh_targets_group]` (passed by the playbook) or `resolved_hosts` as a fallback.

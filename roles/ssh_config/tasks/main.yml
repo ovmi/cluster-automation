@@ -14,6 +14,9 @@
   ansible.builtin.import_tasks: cleanup.yml
   when: ssh_cleanup | bool
 
+- name: Ensure controller SSH key pair exists
+  ansible.builtin.import_tasks: generate_key.yml
+
 - name: Bootstrap SSH (password-based)
   ansible.builtin.import_tasks: bootstrap.yml
   when: ssh_mode == 'bootstrap'
